@@ -3,15 +3,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework import status
 
-from base.models import Product, Review, SubCategory
+from base.models import Product, Review, SubCategory, Category
 from base.serializer import ProductSerializer, ReviewSerializer
-from base.services import (
-    ProductReviewService,
-    ProductNotFound,
-    ReviewNotFound,
-    ReviewValidationError,
-    ReviewPermissionDenied,
-)
+from base.services import delete_product
 
 
 @api_view(['GET'])
@@ -31,18 +25,28 @@ def getProducts(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getProductsByCategory(request, slug):
-    sub_categories = SubCategory.objects.filter(category__slug=slug)
-    products = Product.objects.filter(category__in=sub_categories)
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data)
+    try:
+        category = Category.objects.get(slug=slug)
+        sub_categories = SubCategory.objects.filter(category=category)
+        products = Product.objects.filter(category__in=sub_categories)
+        serializer = ProductSerializer(products, many=True)
+        return Response(serializer.data)
+    except Category.DoesNotExist:
+        return Response([])
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getProductsBySubCategory(request, slug):
-    products = Product.objects.filter(category__slug=slug)
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data)
+    try:
+        sub_category = SubCategory.objects.get(slug=slug)
+        if sub_category.category is None:
+            return Response([])
+        products = Product.objects.filter(category=sub_category)
+        serializer = ProductSerializer(products, many=True)
+        return Response(serializer.data)
+    except SubCategory.DoesNotExist:
+        return Response([])
 
 
 @api_view(['GET'])
@@ -58,15 +62,10 @@ def getTopRatedProducts(request):
 def getProduct(request, pk):
     try:
         product = Product.objects.get(_id=pk)
+        serializer = ProductSerializer(product, many=False)
+        return Response(serializer.data)
     except Product.DoesNotExist:
-        content = {'detail': 'Product not found'}
-        return Response(content, status=status.HTTP_404_NOT_FOUND)
-
-    ProductReviewService.recalculate_product_rating(product)
-    product.refresh_from_db()
-
-    serializer = ProductSerializer(product, many=False)
-    return Response(serializer.data)
+        return Response({'detail': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['PUT'])
@@ -112,11 +111,9 @@ def createProduct(request):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteProduct(request, pk):
-    product = Product.objects.get(_id=pk)
-    product.delete()
-
-    content = {'detail': 'Product deleted successfully'}
-    return Response(content, status=status.HTTP_200_OK)
+    result = delete_product(pk)
+    result['detail'] = 'Product deleted successfully'
+    return Response(result, status=status.HTTP_200_OK)
 
 
 @api_view(['PUT'])
@@ -135,23 +132,36 @@ def incrementClickCount(request, pk):
 def getHotCategories(request):
     hot_categories = []
     products = Product.objects.all()
-    categories = SubCategory.objects.all()
+    categories = SubCategory.objects.filter(category__isnull=False)
 
     for category in categories:
         category_clicks = 0
         for product in products:
             if product.category == category:
-                category_clicks += product.clickCount
+                category_clicks += product.clickCount or 0
+
+        main_category_name = None
+        main_category_slug = None
+        if category.category is not None:
+            main_category_name = category.category.name
+            main_category_slug = category.category.slug
+
+        image_url = '/static/images/placeholder.png'
+        if category.image:
+            try:
+                image_url = category.image.url
+            except:
+                image_url = '/static/images/placeholder.png'
+
         hot_categories.append({
             'category': category.name,
-            'main_category': category.category.name,
-            'main_category_slug': category.category.slug,
+            'main_category': main_category_name,
+            'main_category_slug': main_category_slug,
             'slug': category.slug,
-            'image': category.image.url,
+            'image': image_url,
             'clicks': category_clicks
         })
 
-    # Sort by clicks in descending order and get top 10
     hot_categories.sort(key=lambda x: x['clicks'], reverse=True)
     hot_categories = hot_categories[:10]
 
@@ -189,37 +199,37 @@ def createProductReview(request, pk):
     user = request.user
     data = request.data
 
-    try:
-        product = ProductReviewService.create_review(
-            user=user,
-            product_id=pk,
-            rating=data.get('rating'),
-            comment=data.get('comment'),
-        )
-    except ProductNotFound as e:
-        content = {'detail': str(e)}
-        return Response(content, status=status.HTTP_404_NOT_FOUND)
-    except ReviewValidationError as e:
-        content = {'detail': str(e)}
+    product = Product.objects.get(_id=pk)
+
+    alreadyReviewed = product.review_set.all().filter(user=user).exists()
+
+    if alreadyReviewed:
+        content = {'detail': 'Product already reviewed'}
         return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
-    serializer = ProductSerializer(product, many=False)
-    return Response(serializer.data)
+    elif data['rating'] == 0:
+        content = {'detail': 'Please select a rating'}
+        return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
+    else:
+        review = Review.objects.create(
+            user=user,
+            product=product,
+            name=data['name'],
+            rating=data['rating'],
+            comment=data['comment'],
+        )
 
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def deleteProductReview(request, pk):
-    user = request.user
+        reviews = product.review_set.all()
 
-    try:
-        ProductReviewService.delete_review(review_id=pk, user=user)
-    except ReviewNotFound as e:
-        content = {'detail': str(e)}
-        return Response(content, status=status.HTTP_404_NOT_FOUND)
-    except ReviewPermissionDenied as e:
-        content = {'detail': str(e)}
-        return Response(content, status=status.HTTP_403_FORBIDDEN)
+        total = 0
 
-    content = {'detail': 'Review deleted successfully'}
-    return Response(content, status=status.HTTP_200_OK)
+        for i in reviews:
+            total += i.rating
+
+        product.rating = total / len(reviews)
+        product.numReviews = len(reviews)
+        product.save()
+
+        serializer = ProductSerializer(product, many=False)
+        return Response(serializer.data)

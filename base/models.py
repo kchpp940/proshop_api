@@ -63,18 +63,8 @@ class Review(models.Model):
     createdAt = models.DateTimeField(auto_now_add=True)
     _id = models.AutoField(primary_key=True, editable=False)
 
-    class Meta:
-        unique_together = ('product', 'user')
-
     def __str__(self):
         return str(self.rating)
-
-    def get_reviewer_name(self):
-        if self.name:
-            return self.name
-        if self.user is not None:
-            return f'{self.user.first_name} {self.user.last_name}'.strip() or self.user.email
-        return 'Deleted User'
 
 
 class Order(models.Model):

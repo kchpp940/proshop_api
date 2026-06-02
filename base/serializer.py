@@ -5,34 +5,14 @@ from users.serializers import UserSerializer
 
 
 class ReviewSerializer(serializers.ModelSerializer):
-    reviewer_name = serializers.SerializerMethodField(read_only=True)
-
     class Meta:
         model = Review
         fields = '__all__'
 
-    def get_reviewer_name(self, obj):
-        return obj.get_reviewer_name()
-
-    def validate_rating(self, value):
-        if value is None or not (1 <= value <= 5):
-            raise serializers.ValidationError('Rating must be between 1 and 5.')
-        return value
-
-    def validate_comment(self, value):
-        if value is None or str(value).strip() == '':
-            raise serializers.ValidationError('Comment cannot be empty.')
-        return value
-
-    def to_representation(self, instance):
-        rep = super().to_representation(instance)
-        if not rep.get('name'):
-            rep['name'] = instance.get_reviewer_name()
-        return rep
-
 
 class SubCategorySerializer(serializers.ModelSerializer):
     category = serializers.SerializerMethodField(read_only=True)
+    image_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SubCategory
@@ -45,6 +25,15 @@ class SubCategorySerializer(serializers.ModelSerializer):
                 'name': obj.category.name,
                 'slug': obj.category.slug,
             }
+        return None
+
+    def get_image_url(self, obj):
+        if obj.image:
+            try:
+                return obj.image.url
+            except:
+                return '/static/images/placeholder.png'
+        return '/static/images/placeholder.png'
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -57,33 +46,93 @@ class ProductSerializer(serializers.ModelSerializer):
     reviews = serializers.SerializerMethodField(read_only=True)
     category = serializers.SerializerMethodField(read_only=True)
     image_name = serializers.SerializerMethodField(read_only=True)
+    image_url = serializers.SerializerMethodField(read_only=True)
+    is_uncategorized = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Product
         fields = '__all__'
 
     def get_reviews(self, obj):
-        reviews = obj.review_set.all()
-        serializer = ReviewSerializer(reviews, many=True)
-        return serializer.data
+        try:
+            reviews = obj.review_set.all()
+            serializer = ReviewSerializer(reviews, many=True)
+            return serializer.data
+        except:
+            return []
 
     def get_category(self, obj):
         if obj.category is not None:
-            return {
-                'name': obj.category.category.name,
-                'sub_category': obj.category.name,
-                'slug': obj.category.slug,
-                'cat_slug': obj.category.category.slug,
-            }
+            try:
+                main_category = obj.category.category
+                if main_category is not None:
+                    return {
+                        'name': main_category.name,
+                        'sub_category': obj.category.name,
+                        'slug': obj.category.slug,
+                        'cat_slug': main_category.slug,
+                    }
+                return {
+                    'name': None,
+                    'sub_category': obj.category.name,
+                    'slug': obj.category.slug,
+                    'cat_slug': None,
+                }
+            except:
+                return None
+        return None
+
+    def get_is_uncategorized(self, obj):
+        if obj.category is None:
+            return True
+        try:
+            if obj.category.category is None:
+                return True
+        except:
+            return True
+        return False
 
     def get_image_name(self, obj):
-        return obj.image.name.split('/')[-1]
+        try:
+            if obj.image and obj.image.name:
+                return obj.image.name.split('/')[-1]
+        except:
+            pass
+        return 'placeholder.png'
+
+    def get_image_url(self, obj):
+        try:
+            if obj.image:
+                return obj.image.url
+        except:
+            pass
+        return '/static/images/placeholder.png'
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
+    product_info = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = OrderItem
         fields = '__all__'
+
+    def get_product_info(self, obj):
+        try:
+            if obj.product is not None:
+                return {
+                    '_id': obj.product._id,
+                    'name': obj.product.name,
+                    'image_url': obj.product.image.url if obj.product.image else None,
+                    'is_available': True,
+                }
+        except:
+            pass
+        return {
+            '_id': None,
+            'name': obj.name,
+            'image_url': obj.image,
+            'is_available': False,
+        }
 
 
 class AddressSerializer(serializers.ModelSerializer):
@@ -114,19 +163,27 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_orderItems(self, obj):
-        items = obj.orderitem_set.all()
-        serializer = OrderItemSerializer(items, many=True)
-        return serializer.data
+        try:
+            items = obj.orderitem_set.all()
+            serializer = OrderItemSerializer(items, many=True)
+            return serializer.data
+        except:
+            return []
 
     def get_shippingAddress(self, obj):
         try:
             address = ShippingAddressSerializer(
                 obj.shippingaddress, many=False).data
         except:
-            address = False
+            address = None
 
         return address
 
     def get_user(self, obj):
-        serializer = UserSerializer(obj.user, many=False)
-        return serializer.data
+        try:
+            if obj.user is not None:
+                serializer = UserSerializer(obj.user, many=False)
+                return serializer.data
+        except:
+            pass
+        return None
