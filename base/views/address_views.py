@@ -1,17 +1,17 @@
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
 from base.models import Address
 from base.serializer import AddressSerializer
+from base.services import AddressService
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def getUserAddresses(request):
-    user = request.user
-    addresses = user.address_set.all()
+    addresses = AddressService.list_addresses(request.user)
     serializer = AddressSerializer(addresses, many=True)
     return Response(serializer.data)
 
@@ -19,7 +19,12 @@ def getUserAddresses(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def getUserAddressById(request, pk):
-    address = Address.objects.get(_id=pk)
+    try:
+        address = AddressService.get_address(request.user, pk)
+    except Address.DoesNotExist:
+        return Response(
+            {"detail": "Address not found."}, status=status.HTTP_404_NOT_FOUND
+        )
     serializer = AddressSerializer(address, many=False)
     return Response(serializer.data)
 
@@ -27,21 +32,12 @@ def getUserAddressById(request, pk):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def addAddress(request):
-    user = request.user
-    data = request.data
-
-    address = Address.objects.create(
-        user=user,
-        first_name=data['first_name'],
-        last_name=data['last_name'],
-        address=data['address'],
-        city=data['city'],
-        postal_code=data['postal_code'],
-        country=data['country'],
-        phone_number=data['phone_number'],
-        is_default=data['is_default'],
-    )
-
+    try:
+        address = AddressService.create_address(request.user, request.data)
+    except Address.DoesNotExist:
+        return Response(
+            {"detail": "Address not found."}, status=status.HTTP_404_NOT_FOUND
+        )
     serializer = AddressSerializer(address, many=False)
     return Response(serializer.data)
 
@@ -49,20 +45,12 @@ def addAddress(request):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def updateAddress(request, pk):
-    data = request.data
-    address = Address.objects.get(_id=pk)
-
-    address.first_name = data['first_name']
-    address.last_name = data['last_name']
-    address.address = data['address']
-    address.city = data['city']
-    address.postal_code = data['postal_code']
-    address.country = data['country']
-    address.phone_number = data['phone_number']
-    address.is_default = data['is_default']
-
-    address.save()
-
+    try:
+        address = AddressService.update_address(request.user, pk, request.data)
+    except Address.DoesNotExist:
+        return Response(
+            {"detail": "Address not found."}, status=status.HTTP_404_NOT_FOUND
+        )
     serializer = AddressSerializer(address, many=False)
     return Response(serializer.data)
 
@@ -70,7 +58,10 @@ def updateAddress(request, pk):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def deleteAddress(request, pk):
-    address = Address.objects.get(_id=pk)
-    address.delete()
-
-    return Response(address._id, status=status.HTTP_200_OK)
+    try:
+        address_id = AddressService.delete_address(request.user, pk)
+    except Address.DoesNotExist:
+        return Response(
+            {"detail": "Address not found."}, status=status.HTTP_404_NOT_FOUND
+        )
+    return Response(address_id, status=status.HTTP_200_OK)

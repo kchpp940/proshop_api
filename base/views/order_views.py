@@ -1,30 +1,55 @@
 from datetime import datetime
 
-from django.db import DatabaseError
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework import status
 
-from base.models import Order
+from base.models import Product, Order, OrderItem, Address, ShippingAddress
 from base.serializer import OrderSerializer
-from base.services import OrderService, OrderServiceError
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def addOrderItems(request):
-    try:
-        order = OrderService.create_order(request.user, request.data)
+    user = request.user
+    data = request.data
+
+    orderItems = data['orderItems']
+
+    if orderItems and len(orderItems) == 0:
+        return Response({'detail': 'No order items'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        order = Order.objects.create(
+            user=user,
+            paymentMethod=data['paymentMethod'],
+            taxPrice=data['taxPrice'],
+            shippingPrice=data['shippingPrice'],
+            totalPrice=data['totalPrice'],
+        )
+
+        address = Address.objects.get(_id=data['address_id'])
+
+        ShippingAddress.objects.create(order=order, address=address)
+
+        for orderItem in orderItems:
+            product = Product.objects.get(_id=orderItem['productId'])
+
+            # create order item
+            item = OrderItem.objects.create(
+                order=order,
+                product=product,
+                name=product.name,
+                qty=orderItem['quantity'],
+                price=orderItem['price'],
+                image=product.image.url
+            )
+
+            product.countInStock -= item.qty
+            product.save()
+
         serializer = OrderSerializer(order, many=False)
         return Response(serializer.data)
-    except OrderServiceError as e:
-        return Response({'detail': e.message}, status=e.status_code)
-    except DatabaseError as e:
-        return Response(
-            {'detail': f'Order creation failed: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 
 @api_view(['GET'])
