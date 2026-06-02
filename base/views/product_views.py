@@ -5,6 +5,13 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
+from base.services import (
+    ProductReviewService,
+    ProductNotFound,
+    ReviewNotFound,
+    ReviewValidationError,
+    ReviewPermissionDenied,
+)
 
 
 @api_view(['GET'])
@@ -49,7 +56,15 @@ def getTopRatedProducts(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getProduct(request, pk):
-    product = Product.objects.get(_id=pk)
+    try:
+        product = Product.objects.get(_id=pk)
+    except Product.DoesNotExist:
+        content = {'detail': 'Product not found'}
+        return Response(content, status=status.HTTP_404_NOT_FOUND)
+
+    ProductReviewService.recalculate_product_rating(product)
+    product.refresh_from_db()
+
     serializer = ProductSerializer(product, many=False)
     return Response(serializer.data)
 
@@ -174,37 +189,37 @@ def createProductReview(request, pk):
     user = request.user
     data = request.data
 
-    product = Product.objects.get(_id=pk)
-
-    alreadyReviewed = product.review_set.all().filter(user=user).exists()
-
-    if alreadyReviewed:
-        content = {'detail': 'Product already reviewed'}
-        return Response(content, status=status.HTTP_400_BAD_REQUEST)
-
-    elif data['rating'] == 0:
-        content = {'detail': 'Please select a rating'}
-        return Response(content, status=status.HTTP_400_BAD_REQUEST)
-
-    else:
-        review = Review.objects.create(
+    try:
+        product = ProductReviewService.create_review(
             user=user,
-            product=product,
-            name=data['name'],
-            rating=data['rating'],
-            comment=data['comment'],
+            product_id=pk,
+            rating=data.get('rating'),
+            comment=data.get('comment'),
         )
+    except ProductNotFound as e:
+        content = {'detail': str(e)}
+        return Response(content, status=status.HTTP_404_NOT_FOUND)
+    except ReviewValidationError as e:
+        content = {'detail': str(e)}
+        return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
-        reviews = product.review_set.all()
+    serializer = ProductSerializer(product, many=False)
+    return Response(serializer.data)
 
-        total = 0
 
-        for i in reviews:
-            total += i.rating
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def deleteProductReview(request, pk):
+    user = request.user
 
-        product.rating = total / len(reviews)
-        product.numReviews = len(reviews)
-        product.save()
+    try:
+        ProductReviewService.delete_review(review_id=pk, user=user)
+    except ReviewNotFound as e:
+        content = {'detail': str(e)}
+        return Response(content, status=status.HTTP_404_NOT_FOUND)
+    except ReviewPermissionDenied as e:
+        content = {'detail': str(e)}
+        return Response(content, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = ProductSerializer(product, many=False)
-        return Response(serializer.data)
+    content = {'detail': 'Review deleted successfully'}
+    return Response(content, status=status.HTTP_200_OK)

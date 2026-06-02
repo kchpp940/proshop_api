@@ -5,9 +5,30 @@ from users.serializers import UserSerializer
 
 
 class ReviewSerializer(serializers.ModelSerializer):
+    reviewer_name = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Review
         fields = '__all__'
+
+    def get_reviewer_name(self, obj):
+        return obj.get_reviewer_name()
+
+    def validate_rating(self, value):
+        if value is None or not (1 <= value <= 5):
+            raise serializers.ValidationError('Rating must be between 1 and 5.')
+        return value
+
+    def validate_comment(self, value):
+        if value is None or str(value).strip() == '':
+            raise serializers.ValidationError('Comment cannot be empty.')
+        return value
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        if not rep.get('name'):
+            rep['name'] = instance.get_reviewer_name()
+        return rep
 
 
 class SubCategorySerializer(serializers.ModelSerializer):
