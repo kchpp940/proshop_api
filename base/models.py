@@ -1,35 +1,8 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
+
 User = get_user_model()
-
-
-class Coupon(models.Model):
-    DISCOUNT_TYPE_CHOICES = [
-        ('fixed', '固定金额'),
-        ('percentage', '百分比折扣'),
-    ]
-
-    _id = models.AutoField(primary_key=True, editable=False)
-    code = models.CharField(max_length=50, unique=True)
-    name = models.CharField(max_length=100, null=True, blank=True)
-    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPE_CHOICES)
-    discount_value = models.DecimalField(max_digits=10, decimal_places=2)
-    minimum_order_amount = models.DecimalField(
-        max_digits=10, decimal_places=2, default=0.00, validators=[MinValueValidator(0)]
-    )
-    valid_from = models.DateTimeField()
-    valid_to = models.DateTimeField()
-    usage_limit = models.IntegerField(default=1, validators=[MinValueValidator(1)])
-    used_count = models.IntegerField(default=0, validators=[MinValueValidator(0)])
-    is_active = models.BooleanField(default=True)
-    createdAt = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name_plural = 'Coupons'
-
-    def __str__(self):
-        return f'{self.code} ({self.get_discount_type_display()})'
 
 
 class Category(models.Model):
@@ -97,6 +70,38 @@ class Review(models.Model):
 
 
 class Order(models.Model):
+    STATUS_CREATED = 'created'
+    STATUS_PAID = 'paid'
+    STATUS_SHIPPED = 'shipped'
+    STATUS_DELIVERED = 'delivered'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_REFUNDED = 'refunded'
+
+    STATUS_CHOICES = [
+        (STATUS_CREATED, '已创建'),
+        (STATUS_PAID, '已支付'),
+        (STATUS_SHIPPED, '已发货'),
+        (STATUS_DELIVERED, '已送达'),
+        (STATUS_CANCELLED, '已取消'),
+        (STATUS_REFUNDED, '已退款'),
+    ]
+
+    VALID_TRANSITIONS = {
+        STATUS_CREATED: [STATUS_PAID, STATUS_CANCELLED],
+        STATUS_PAID: [STATUS_SHIPPED, STATUS_REFUNDED],
+        STATUS_SHIPPED: [STATUS_DELIVERED],
+    }
+
+    STATUS_FIELD_MAP = {
+        STATUS_PAID: ('isPaid', 'paidAt'),
+        STATUS_DELIVERED: ('isDelivered', 'deliveredAt'),
+        STATUS_CANCELLED: ('isCancelled', 'cancelledAt'),
+        STATUS_REFUNDED: ('isRefunded', 'refundedAt'),
+    }
+
+    STOCK_RESTORE_STATUSES = set()
+    ADMIN_ONLY_STATUSES = {STATUS_SHIPPED, STATUS_DELIVERED, STATUS_CANCELLED, STATUS_REFUNDED}
+
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     paymentMethod = models.CharField(max_length=200, null=True, blank=True)
     taxPrice = models.DecimalField(
@@ -105,21 +110,88 @@ class Order(models.Model):
         max_digits=7, decimal_places=2, null=True, blank=True)
     totalPrice = models.DecimalField(
         max_digits=7, decimal_places=2, null=True, blank=True)
-    couponCode = models.CharField(max_length=50, null=True, blank=True)
-    discountAmount = models.DecimalField(
-        max_digits=7, decimal_places=2, null=True, blank=True, default=0.00)
-    finalPrice = models.DecimalField(
-        max_digits=7, decimal_places=2, null=True, blank=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_CREATED)
     isPaid = models.BooleanField(default=False)
     paidAt = models.DateTimeField(auto_now_add=False, null=True, blank=True)
     isDelivered = models.BooleanField(default=False)
     deliveredAt = models.DateTimeField(
+        auto_now_add=False, null=True, blank=True)
+    isCancelled = models.BooleanField(default=False)
+    cancelledAt = models.DateTimeField(
+        auto_now_add=False, null=True, blank=True)
+    isRefunded = models.BooleanField(default=False)
+    refundedAt = models.DateTimeField(
         auto_now_add=False, null=True, blank=True)
     createdAt = models.DateTimeField(auto_now_add=True)
     _id = models.AutoField(primary_key=True, editable=False)
 
     def __str__(self):
         return str(self.createdAt)
+
+    def transition_status(self, new_status, operator, note=''):
+        from datetime import datetime
+
+        allowed = self.VALID_TRANSITIONS.get(self.status, [])
+        if new_status not in allowed:
+            raise ValidationError(
+                f'订单当前状态为「{self.get_status_display()}」，'
+                f'不允许变更为「{dict(self.STATUS_CHOICES)[new_status]}」',
+                code='invalid_transition'
+            )
+
+        if new_status in self.ADMIN_ONLY_STATUSES:
+            if not operator or not operator.is_staff:
+                raise ValidationError(
+                    '仅管理员可执行此操作',
+                    code='admin_required'
+                )
+        else:
+            if not operator or (not operator.is_staff and operator != self.user):
+                raise ValidationError(
+                    '无权操作此订单',
+                    code='permission_denied'
+                )
+
+        self.status = new_status
+
+        if new_status in self.STATUS_FIELD_MAP:
+            bool_field, time_field = self.STATUS_FIELD_MAP[new_status]
+            setattr(self, bool_field, True)
+            setattr(self, time_field, datetime.now())
+
+        self.save()
+
+        OrderStatusHistory.objects.create(
+            order=self,
+            status=new_status,
+            operator=operator,
+            note=note
+        )
+
+    def _restore_stock(self):
+        for item in self.orderitem_set.all():
+            if item.product:
+                item.product.countInStock += item.qty
+                item.product.save()
+
+
+class OrderStatusHistory(models.Model):
+    order = models.ForeignKey(
+        Order, on_delete=models.CASCADE, related_name='status_history')
+    status = models.CharField(
+        max_length=20, choices=Order.STATUS_CHOICES)
+    operator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    note = models.TextField(null=True, blank=True)
+    createdAt = models.DateTimeField(auto_now_add=True)
+    _id = models.AutoField(primary_key=True, editable=False)
+
+    class Meta:
+        ordering = ['-createdAt']
+        verbose_name_plural = 'Order Status Histories'
+
+    def __str__(self):
+        return f'{self.order._id} - {self.get_status_display()}'
 
 
 class OrderItem(models.Model):
@@ -160,26 +232,3 @@ class ShippingAddress(models.Model):
 
     def __str__(self):
         return self.address.address
-
-
-class Cart(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
-    createdAt = models.DateTimeField(auto_now_add=True)
-    updatedAt = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f'Cart for {self.user.email}'
-
-
-class CartItem(models.Model):
-    cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    qty = models.IntegerField(default=1)
-    addedAt = models.DateTimeField(auto_now_add=True)
-    updatedAt = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        unique_together = ('cart', 'product')
-
-    def __str__(self):
-        return f'{self.qty} x {self.product.name}'

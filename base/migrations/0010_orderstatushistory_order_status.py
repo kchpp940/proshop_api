@@ -1,0 +1,54 @@
+from django.conf import settings
+from django.db import migrations, models
+import django.db.models.deletion
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+        ('base', '0009_cart_cartitem'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='OrderStatusHistory',
+            fields=[
+                ('status', models.CharField(choices=[('created', '已创建'), ('paid', '已支付'), ('shipped', '已发货'), ('delivered', '已送达'), ('cancelled', '已取消'), ('refunded', '已退款')], max_length=20)),
+                ('note', models.TextField(blank=True, null=True)),
+                ('createdAt', models.DateTimeField(auto_now_add=True)),
+                ('_id', models.AutoField(editable=False, primary_key=True, serialize=False)),
+                ('operator', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+                ('order', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='status_history', to='base.order')),
+            ],
+            options={
+                'verbose_name_plural': 'Order Status Histories',
+                'ordering': ['-createdAt'],
+            },
+        ),
+        migrations.AddField(
+            model_name='order',
+            name='status',
+            field=models.CharField(choices=[('created', '已创建'), ('paid', '已支付'), ('shipped', '已发货'), ('delivered', '已送达'), ('cancelled', '已取消'), ('refunded', '已退款')], default='created', max_length=20),
+        ),
+        migrations.AddField(
+            model_name='order',
+            name='isCancelled',
+            field=models.BooleanField(default=False),
+        ),
+        migrations.AddField(
+            model_name='order',
+            name='cancelledAt',
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+        migrations.AddField(
+            model_name='order',
+            name='isRefunded',
+            field=models.BooleanField(default=False),
+        ),
+        migrations.AddField(
+            model_name='order',
+            name='refundedAt',
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+    ]

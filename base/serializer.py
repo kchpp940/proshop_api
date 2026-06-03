@@ -1,52 +1,7 @@
 from rest_framework import serializers
 
-from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory, Coupon, Cart, CartItem
+from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory, OrderStatusHistory
 from users.serializers import UserSerializer
-
-
-class CouponSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Coupon
-        fields = '__all__'
-        read_only_fields = ('used_count', 'createdAt')
-
-
-class CartItemSerializer(serializers.ModelSerializer):
-    product = serializers.SerializerMethodField(read_only=True)
-
-    class Meta:
-        model = CartItem
-        fields = '__all__'
-
-    def get_product(self, obj):
-        return {
-            '_id': obj.product._id,
-            'name': obj.product.name,
-            'price': obj.product.price,
-            'image': obj.product.image.url if obj.product.image else None,
-            'countInStock': obj.product.countInStock,
-        }
-
-
-class CartSerializer(serializers.ModelSerializer):
-    items = CartItemSerializer(many=True, read_only=True)
-    totals = serializers.SerializerMethodField(read_only=True)
-
-    class Meta:
-        model = Cart
-        fields = '__all__'
-
-    def get_totals(self, obj):
-        from base.utils import calculate_subtotal, calculate_tax, calculate_shipping
-        subtotal = calculate_subtotal(obj)
-        tax = calculate_tax(subtotal)
-        shipping = calculate_shipping(subtotal)
-        return {
-            'subtotal': subtotal,
-            'tax': tax,
-            'shipping': shipping,
-            'total': subtotal + tax + shipping,
-        }
 
 
 class ReviewSerializer(serializers.ModelSerializer):
@@ -110,6 +65,25 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class OrderStatusHistorySerializer(serializers.ModelSerializer):
+    operator = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(
+        source='get_status_display', read_only=True)
+
+    class Meta:
+        model = OrderStatusHistory
+        fields = '__all__'
+
+    def get_operator(self, obj):
+        if obj.operator:
+            return {
+                '_id': obj.operator.id,
+                'name': obj.operator.get_full_name() or obj.operator.email,
+                'email': obj.operator.email,
+            }
+        return None
+
+
 class AddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Address
@@ -132,6 +106,9 @@ class OrderSerializer(serializers.ModelSerializer):
     orderItems = serializers.SerializerMethodField(read_only=True)
     shippingAddress = serializers.SerializerMethodField(read_only=True)
     user = serializers.SerializerMethodField(read_only=True)
+    status_history = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(
+        source='get_status_display', read_only=True)
 
     class Meta:
         model = Order
@@ -153,4 +130,9 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def get_user(self, obj):
         serializer = UserSerializer(obj.user, many=False)
+        return serializer.data
+
+    def get_status_history(self, obj):
+        history = obj.status_history.all()
+        serializer = OrderStatusHistorySerializer(history, many=True)
         return serializer.data
