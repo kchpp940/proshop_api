@@ -1,6 +1,35 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.core.validators import MinValueValidator, MaxValueValidator
 User = get_user_model()
+
+
+class Coupon(models.Model):
+    DISCOUNT_TYPE_CHOICES = [
+        ('fixed', '固定金额'),
+        ('percentage', '百分比折扣'),
+    ]
+
+    _id = models.AutoField(primary_key=True, editable=False)
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100, null=True, blank=True)
+    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPE_CHOICES)
+    discount_value = models.DecimalField(max_digits=10, decimal_places=2)
+    minimum_order_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00, validators=[MinValueValidator(0)]
+    )
+    valid_from = models.DateTimeField()
+    valid_to = models.DateTimeField()
+    usage_limit = models.IntegerField(default=1, validators=[MinValueValidator(1)])
+    used_count = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    is_active = models.BooleanField(default=True)
+    createdAt = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name_plural = 'Coupons'
+
+    def __str__(self):
+        return f'{self.code} ({self.get_discount_type_display()})'
 
 
 class Category(models.Model):
@@ -76,6 +105,11 @@ class Order(models.Model):
         max_digits=7, decimal_places=2, null=True, blank=True)
     totalPrice = models.DecimalField(
         max_digits=7, decimal_places=2, null=True, blank=True)
+    couponCode = models.CharField(max_length=50, null=True, blank=True)
+    discountAmount = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True, default=0.00)
+    finalPrice = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True)
     isPaid = models.BooleanField(default=False)
     paidAt = models.DateTimeField(auto_now_add=False, null=True, blank=True)
     isDelivered = models.BooleanField(default=False)
@@ -134,21 +168,18 @@ class Cart(models.Model):
     updatedAt = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Cart for {self.user.email}"
+        return f'Cart for {self.user.email}'
 
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     qty = models.IntegerField(default=1)
-    priceSnapshot = models.DecimalField(
-        max_digits=7, decimal_places=2, null=True, blank=True)
     addedAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    _id = models.AutoField(primary_key=True, editable=False)
 
     class Meta:
         unique_together = ('cart', 'product')
 
     def __str__(self):
-        return f"{self.qty} x {self.product.name}"
+        return f'{self.qty} x {self.product.name}'

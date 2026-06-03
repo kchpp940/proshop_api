@@ -1,144 +1,110 @@
 from datetime import datetime
 from decimal import Decimal
 
-from django.conf import settings
 from django.db import transaction
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework import status
 
-from base.models import Product, Order, OrderItem, Address, ShippingAddress, Cart, CartItem
+from base.models import Product, Order, OrderItem, Address, ShippingAddress, Coupon, Cart
 from base.serializer import OrderSerializer
-
-
-def _calc_tax(subtotal):
-    rate = getattr(settings, 'ORDER_TAX_RATE', Decimal('0'))
-    return (subtotal * rate).quantize(Decimal('0.01'))
-
-
-def _calc_shipping(subtotal):
-    cfg = getattr(settings, 'ORDER_SHIPPING_CONFIG', {})
-    free_threshold = Decimal(str(cfg.get('free_above', '0')))
-    flat_fee = Decimal(str(cfg.get('flat_fee', '0')))
-    if free_threshold and subtotal >= free_threshold:
-        return Decimal('0')
-    return flat_fee
+from base.views.coupon_views import validate_coupon_instance, calculate_discount
+from base.utils import calculate_cart_totals
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@transaction.atomic
 def addOrderItems(request):
     user = request.user
     data = request.data
 
+    cart = Cart.objects.select_for_update().filter(user=user).first()
+    if not cart or cart.items.count() == 0:
+        return Response({'detail': '购物车为空'}, status=status.HTTP_400_BAD_REQUEST)
+
+    cart_totals = calculate_cart_totals(user)
+    subtotal = cart_totals['subtotal']
+    tax_price = cart_totals['tax']
+    shipping_price = cart_totals['shipping']
+    total_price = cart_totals['total']
+
+    address_id = data.get('address_id')
+    if not address_id:
+        return Response({'detail': '请选择收货地址'}, status=status.HTTP_400_BAD_REQUEST)
+
     try:
-        cart = Cart.objects.get(user=user)
-    except Cart.DoesNotExist:
-        return Response({
-            'detail': 'Cart is empty',
-            'code': 'cart_empty'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        address = Address.objects.get(_id=address_id, user=user)
+    except Address.DoesNotExist:
+        return Response({'detail': '收货地址不存在'}, status=status.HTTP_400_BAD_REQUEST)
 
-    cart_items = list(CartItem.objects.filter(cart=cart).select_related('product'))
+    payment_method = data.get('paymentMethod')
+    if not payment_method:
+        return Response({'detail': '请选择支付方式'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if not cart_items:
-        return Response({
-            'detail': 'No order items in cart',
-            'code': 'cart_empty'
-        }, status=status.HTTP_400_BAD_REQUEST)
+    coupon_code = data.get('coupon_code', '').strip().upper() if data.get('coupon_code') else None
+    discount_amount = Decimal('0.00')
+    final_price = total_price
+    used_coupon = None
 
-    product_ids = [item.product._id for item in cart_items]
+    if coupon_code:
+        coupon = Coupon.objects.select_for_update().filter(code=coupon_code).first()
+        if not coupon:
+            return Response({'detail': '优惠券不存在'}, status=status.HTTP_404_NOT_FOUND)
+        
+        error, status_code = validate_coupon_instance(coupon, total_price)
+        if error:
+            return Response(error, status=status_code)
+        
+        discount_amount = calculate_discount(coupon, total_price)
+        final_price = (total_price - discount_amount).quantize(Decimal('0.01'))
+        used_coupon = coupon
 
-    with transaction.atomic():
-        products = {
-            p._id: p for p in Product.objects.filter(
-                _id__in=product_ids
-            ).select_for_update().order_by('_id')
-        }
+    order = Order.objects.create(
+        user=user,
+        paymentMethod=payment_method,
+        taxPrice=tax_price,
+        shippingPrice=shipping_price,
+        totalPrice=total_price,
+        couponCode=coupon_code,
+        discountAmount=discount_amount,
+        finalPrice=final_price,
+    )
 
-        errors = []
-        price_changes = []
-        for cart_item in cart_items:
-            product = products[cart_item.product._id]
-            qty = cart_item.qty
+    if used_coupon:
+        used_coupon.used_count += 1
+        used_coupon.save()
 
-            if qty > product.countInStock:
-                errors.append({
-                    'product_id': product._id,
-                    'product_name': product.name,
-                    'requested_qty': qty,
-                    'available_qty': product.countInStock,
-                })
+    ShippingAddress.objects.create(order=order, address=address)
 
-            snapshot_price = cart_item.priceSnapshot
-            current_price = product.price
-            if snapshot_price is not None and current_price is not None and snapshot_price != current_price:
-                price_changes.append({
-                    'product_id': product._id,
-                    'product_name': product.name,
-                    'snapshot_price': snapshot_price,
-                    'current_price': current_price,
-                    'qty': qty,
-                    'price_diff': current_price - snapshot_price,
-                    'line_total_diff': qty * (current_price - snapshot_price),
-                })
+    cart_items = cart.items.select_related('product').all()
+    for cart_item in cart_items:
+        product = cart_item.product
 
-        if errors:
-            return Response({
-                'detail': 'Insufficient stock for some items',
-                'code': 'insufficient_stock',
-                'items': errors,
-                'price_changes': price_changes
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        subtotal = Decimal('0')
-        for cart_item in cart_items:
-            product = products[cart_item.product._id]
-            subtotal += cart_item.qty * (product.price or Decimal('0'))
-
-        tax_price = _calc_tax(subtotal)
-        shipping_price = _calc_shipping(subtotal)
-        total_price = subtotal + tax_price + shipping_price
-
-        order = Order.objects.create(
-            user=user,
-            paymentMethod=data['paymentMethod'],
-            taxPrice=tax_price,
-            shippingPrice=shipping_price,
-            totalPrice=total_price,
-        )
-
-        address = Address.objects.get(_id=data['address_id'])
-        ShippingAddress.objects.create(order=order, address=address)
-
-        for cart_item in cart_items:
-            product = products[cart_item.product._id]
-            qty = cart_item.qty
-            price = product.price
-
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                name=product.name,
-                qty=qty,
-                price=price,
-                image=product.image.url
+        if product.countInStock < cart_item.qty:
+            transaction.set_rollback(True)
+            return Response(
+                {'detail': f'商品 {product.name} 库存不足'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-            product.countInStock -= qty
-            product.save()
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            name=product.name,
+            qty=cart_item.qty,
+            price=product.price,
+            image=product.image.url if product.image else None
+        )
 
-        cart.items.all().delete()
+        product.countInStock -= cart_item.qty
+        product.save()
+
+    cart.items.all().delete()
 
     serializer = OrderSerializer(order, many=False)
-    response_data = serializer.data
-    if price_changes:
-        response_data['price_changes'] = price_changes
-        response_data['has_price_changes'] = True
-    else:
-        response_data['has_price_changes'] = False
-    return Response(response_data)
+    return Response(serializer.data)
 
 
 @api_view(['GET'])

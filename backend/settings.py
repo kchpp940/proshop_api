@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 
 from django.core.management.utils import get_random_secret_key
 from datetime import timedelta
-from decimal import Decimal
 from pathlib import Path
 import os
 
@@ -231,13 +230,6 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ['first_name', 'last_name']
 
 
 AUTH_USER_MODEL = 'users.UserAccount'
-
-ORDER_TAX_RATE = Decimal(os.environ.get('ORDER_TAX_RATE', '0'))
-
-ORDER_SHIPPING_CONFIG = {
-    'flat_fee': os.environ.get('ORDER_SHIPPING_FLAT_FEE', '10.00'),
-    'free_above': os.environ.get('ORDER_SHIPPING_FREE_ABOVE', '100.00'),
-}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
