@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory, Wishlist
+from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory, Cart, CartItem
 from users.serializers import UserSerializer
 
 
@@ -36,7 +36,6 @@ class ProductSerializer(serializers.ModelSerializer):
     reviews = serializers.SerializerMethodField(read_only=True)
     category = serializers.SerializerMethodField(read_only=True)
     image_name = serializers.SerializerMethodField(read_only=True)
-    is_wishlisted = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Product
@@ -58,15 +57,6 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_image_name(self, obj):
         return obj.image.name.split('/')[-1]
-
-    def get_is_wishlisted(self, obj):
-        wishlist_ids = self.context.get('wishlist_product_ids')
-        if wishlist_ids is not None:
-            return obj._id in wishlist_ids
-        request = self.context.get('request')
-        if request and request.user and request.user.is_authenticated:
-            return Wishlist.objects.filter(user=request.user, product=obj).exists()
-        return False
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -121,13 +111,84 @@ class OrderSerializer(serializers.ModelSerializer):
         return serializer.data
 
 
-class WishlistSerializer(serializers.ModelSerializer):
+class CartItemSerializer(serializers.ModelSerializer):
     product = serializers.SerializerMethodField(read_only=True)
+    current_price = serializers.SerializerMethodField(read_only=True)
+    available_qty = serializers.SerializerMethodField(read_only=True)
+    can_purchase = serializers.SerializerMethodField(read_only=True)
+    price_changed = serializers.SerializerMethodField(read_only=True)
+    snapshot_price = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
-        model = Wishlist
-        fields = '__all__'
+        model = CartItem
+        fields = ['_id', 'product', 'qty', 'snapshot_price',
+                  'current_price', 'available_qty', 'can_purchase',
+                  'price_changed', 'addedAt']
 
     def get_product(self, obj):
-        serializer = ProductSerializer(obj.product, many=False, context=self.context)
+        product = obj.product
+        return {
+            '_id': product._id,
+            'name': product.name,
+            'image': product.image.url if product.image else None,
+            'brand': product.brand,
+        }
+
+    def get_snapshot_price(self, obj):
+        return obj.priceSnapshot
+
+    def get_current_price(self, obj):
+        return obj.product.price
+
+    def get_available_qty(self, obj):
+        return obj.product.countInStock
+
+    def get_can_purchase(self, obj):
+        return obj.qty <= obj.product.countInStock and obj.product.countInStock > 0
+
+    def get_price_changed(self, obj):
+        if obj.priceSnapshot is None or obj.product.price is None:
+            return False
+        return obj.priceSnapshot != obj.product.price
+
+
+class CartSerializer(serializers.ModelSerializer):
+    items = serializers.SerializerMethodField(read_only=True)
+    total_items = serializers.SerializerMethodField(read_only=True)
+    total_price = serializers.SerializerMethodField(read_only=True)
+    total_price_at_add = serializers.SerializerMethodField(read_only=True)
+    has_price_changes = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Cart
+        fields = ['user_id', 'items', 'total_items', 'total_price',
+                  'total_price_at_add', 'has_price_changes',
+                  'createdAt', 'updatedAt']
+
+    def get_items(self, obj):
+        items = obj.items.all().select_related('product')
+        serializer = CartItemSerializer(items, many=True)
         return serializer.data
+
+    def get_total_items(self, obj):
+        return sum(item.qty for item in obj.items.all())
+
+    def get_total_price(self, obj):
+        return sum(
+            item.qty * (item.product.price or 0)
+            for item in obj.items.all().select_related('product')
+        )
+
+    def get_total_price_at_add(self, obj):
+        return sum(
+            item.qty * (item.priceSnapshot or item.product.price or 0)
+            for item in obj.items.all().select_related('product')
+        )
+
+    def get_has_price_changes(self, obj):
+        return any(
+            (item.priceSnapshot is not None
+             and item.product.price is not None
+             and item.priceSnapshot != item.product.price)
+            for item in obj.items.all().select_related('product')
+        )

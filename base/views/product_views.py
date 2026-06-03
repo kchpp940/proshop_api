@@ -3,23 +3,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework import status
 
-from base.models import Product, Review, SubCategory, Wishlist
+from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
-
-
-def _get_wishlist_product_ids(user, product_ids=None):
-    if not (user and user.is_authenticated):
-        return set()
-    queryset = Wishlist.objects.filter(user=user)
-    if product_ids is not None:
-        queryset = queryset.filter(product__id__in=product_ids)
-    return set(queryset.values_list('product__id', flat=True))
-
-
-def _get_serializer_context(request, product_ids=None):
-    context = {'request': request}
-    context['wishlist_product_ids'] = _get_wishlist_product_ids(request.user, product_ids)
-    return context
 
 
 @api_view(['GET'])
@@ -31,9 +16,8 @@ def getProducts(request):
         query = ''
 
     products = Product.objects.filter(name__icontains=query)
-    product_ids = list(products.values_list('_id', flat=True))
 
-    serializer = ProductSerializer(products, many=True, context=_get_serializer_context(request, product_ids))
+    serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
 
 
@@ -42,8 +26,7 @@ def getProducts(request):
 def getProductsByCategory(request, slug):
     sub_categories = SubCategory.objects.filter(category__slug=slug)
     products = Product.objects.filter(category__in=sub_categories)
-    product_ids = list(products.values_list('_id', flat=True))
-    serializer = ProductSerializer(products, many=True, context=_get_serializer_context(request, product_ids))
+    serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
 
 
@@ -51,8 +34,7 @@ def getProductsByCategory(request, slug):
 @permission_classes([AllowAny])
 def getProductsBySubCategory(request, slug):
     products = Product.objects.filter(category__slug=slug)
-    product_ids = list(products.values_list('_id', flat=True))
-    serializer = ProductSerializer(products, many=True, context=_get_serializer_context(request, product_ids))
+    serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
 
 
@@ -60,23 +42,16 @@ def getProductsBySubCategory(request, slug):
 @permission_classes([AllowAny])
 def getTopRatedProducts(request):
     products = Product.objects.filter(rating__gte=4).order_by('-rating')[:5]
-    product_ids = list(products.values_list('_id', flat=True))
-    serializer = ProductSerializer(products, many=True, context=_get_serializer_context(request, product_ids))
+    serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getProduct(request, pk):
-    try:
-        product = Product.objects.get(_id=pk)
-        serializer = ProductSerializer(product, many=False, context=_get_serializer_context(request, [pk]))
-        return Response(serializer.data)
-    except Product.DoesNotExist:
-        return Response(
-            {'detail': 'Product does not exist', 'code': 'product_not_found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+    product = Product.objects.get(_id=pk)
+    serializer = ProductSerializer(product, many=False)
+    return Response(serializer.data)
 
 
 @api_view(['PUT'])
@@ -97,7 +72,7 @@ def updateProduct(request, pk):
 
     product.save()
 
-    serializer = ProductSerializer(product, many=False, context=_get_serializer_context(request))
+    serializer = ProductSerializer(product, many=False)
     return Response(serializer.data)
 
 
@@ -115,7 +90,7 @@ def createProduct(request):
         countInStock=0,
     )
 
-    serializer = ProductSerializer(product, many=False, context=_get_serializer_context(request))
+    serializer = ProductSerializer(product, many=False)
     return Response(serializer.data)
 
 
@@ -231,5 +206,5 @@ def createProductReview(request, pk):
         product.numReviews = len(reviews)
         product.save()
 
-        serializer = ProductSerializer(product, many=False, context=_get_serializer_context(request))
+        serializer = ProductSerializer(product, many=False)
         return Response(serializer.data)
