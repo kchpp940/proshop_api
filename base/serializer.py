@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory
+from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory, Wishlist
 from users.serializers import UserSerializer
 
 
@@ -36,6 +36,7 @@ class ProductSerializer(serializers.ModelSerializer):
     reviews = serializers.SerializerMethodField(read_only=True)
     category = serializers.SerializerMethodField(read_only=True)
     image_name = serializers.SerializerMethodField(read_only=True)
+    is_wishlisted = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Product
@@ -57,6 +58,15 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_image_name(self, obj):
         return obj.image.name.split('/')[-1]
+
+    def get_is_wishlisted(self, obj):
+        wishlist_ids = self.context.get('wishlist_product_ids')
+        if wishlist_ids is not None:
+            return obj._id in wishlist_ids
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            return Wishlist.objects.filter(user=request.user, product=obj).exists()
+        return False
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -108,4 +118,16 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def get_user(self, obj):
         serializer = UserSerializer(obj.user, many=False)
+        return serializer.data
+
+
+class WishlistSerializer(serializers.ModelSerializer):
+    product = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Wishlist
+        fields = '__all__'
+
+    def get_product(self, obj):
+        serializer = ProductSerializer(obj.product, many=False, context=self.context)
         return serializer.data
