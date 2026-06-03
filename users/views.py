@@ -1,6 +1,5 @@
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
-from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
 from django.views.generic import TemplateView
 
@@ -17,6 +16,18 @@ import os
 
 
 from .serializers import UserSerializer
+from .utils import (
+    get_user_by_email,
+    normalize_email,
+    check_email_availability,
+    AccountNotFoundError,
+    InvalidPasswordError,
+    AccountInactiveError,
+    EmailConflictError,
+    InvalidActivationLinkError,
+    AlreadyActivatedError,
+    InvalidTokenError,
+)
 User = get_user_model()
 
 
@@ -26,26 +37,24 @@ def custom_login_view(request):
     email = request.data['email']
     password = request.data['password']
 
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        return Response({'detail': 'There is no account for this email address'}, status=status.HTTP_404_NOT_FOUND)
+    user = get_user_by_email(email)
+    if user is None:
+        raise AccountNotFoundError()
 
-    if user.check_password(password):
+    if not user.check_password(password):
+        raise InvalidPasswordError()
 
-        if user.is_active:
-            refresh = RefreshToken.for_user(user)
+    if not user.is_active:
+        raise AccountInactiveError()
 
-            token = {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
+    refresh = RefreshToken.for_user(user)
 
-            return Response(token, status=status.HTTP_200_OK)
-        else:
-            return Response({'detail': 'Your account is not activated'}, status=status.HTTP_401_UNAUTHORIZED)
-    else:
-        return Response({'detail': 'Your password is incorrect'}, status=status.HTTP_401_UNAUTHORIZED)
+    token = {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
+
+    return Response(token, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -58,29 +67,29 @@ def custom_activation_view(request):
         uid = urlsafe_base64_decode(uidb64).decode()
         user = User.objects.get(pk=uid)
     except (User.DoesNotExist, ValueError, TypeError, OverflowError):
-        return Response({'detail': 'Invalid activation link'}, status=status.HTTP_400_BAD_REQUEST)
+        raise InvalidActivationLinkError()
 
     if user.is_active:
-        return Response({'detail': 'Your account is already activated'}, status=status.HTTP_400_BAD_REQUEST)
-    else:
-        if default_token_generator.check_token(user, token):
-            user.is_active = True
-            user.save()
+        raise AlreadyActivatedError()
 
-            context = {'user': user}
-            to = [get_user_email(user)]
-            settings.EMAIL.confirmation(request, context).send(to)
+    if not default_token_generator.check_token(user, token):
+        raise InvalidTokenError()
 
-            refresh = RefreshToken.for_user(user)
+    user.is_active = True
+    user.save()
 
-            token = {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
+    context = {'user': user}
+    to = [get_user_email(user)]
+    settings.EMAIL.confirmation(request, context).send(to)
 
-            return Response(token, status=status.HTTP_200_OK)
-        else:
-            return Response({'detail': 'Your token is incorrect'}, status=status.HTTP_401_UNAUTHORIZED)
+    refresh = RefreshToken.for_user(user)
+
+    token = {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
+
+    return Response(token, status=status.HTTP_200_OK)
 
 
 class GoogleCodeVerificationView(TemplateView):
@@ -101,10 +110,9 @@ class GoogleCodeVerificationView(TemplateView):
 def custom_request_password_reset(request):
     email = request.data['email']
 
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        return Response({'detail': 'There is no account for this email address'}, status=status.HTTP_404_NOT_FOUND)
+    user = get_user_by_email(email)
+    if user is None:
+        raise AccountNotFoundError()
 
     context = {'user': user}
     to = [get_user_email(user)]
@@ -159,12 +167,17 @@ def getUserById(request, pk):
 @permission_classes([IsAdminUser])
 def updateUser(request, pk):
     user = User.objects.get(id=pk)
-
     data = request.data
+
+    normalized_email = normalize_email(data['email'])
+
+    is_available, error_msg = check_email_availability(normalized_email, exclude_user_id=pk)
+    if not is_available:
+        raise EmailConflictError(detail=error_msg)
 
     user.first_name = data['first_name']
     user.last_name = data['last_name']
-    user.email = data['email']
+    user.email = normalized_email
     user.is_staff = data['isAdmin']
     user.is_active = data['isActive']
 

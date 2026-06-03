@@ -35,20 +35,14 @@ def addOrderItems(request):
         for orderItem in orderItems:
             product = Product.objects.get(_id=orderItem['productId'])
 
-            image_url = '/static/images/placeholder.png'
-            if product.image:
-                try:
-                    image_url = product.image.url
-                except:
-                    image_url = '/static/images/placeholder.png'
-
+            # create order item
             item = OrderItem.objects.create(
                 order=order,
                 product=product,
                 name=product.name,
                 qty=orderItem['quantity'],
                 price=orderItem['price'],
-                image=image_url
+                image=product.image.url
             )
 
             product.countInStock -= item.qty

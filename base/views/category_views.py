@@ -5,7 +5,6 @@ from rest_framework import status
 
 from base.models import Category, SubCategory
 from base.serializer import CategorySerializer, SubCategorySerializer
-from base.services import delete_category, delete_subcategory
 
 
 @api_view(['GET'])
@@ -19,18 +18,15 @@ def getCategories(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getCategory(request, pk):
-    try:
-        category = Category.objects.get(_id=pk)
-        serializer = CategorySerializer(category, many=False)
-        return Response(serializer.data)
-    except Category.DoesNotExist:
-        return Response({'detail': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
+    category = Category.objects.get(_id=pk)
+    serializer = CategorySerializer(category, many=False)
+    return Response(serializer.data)
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getSubCategories(request):
-    subCategories = SubCategory.objects.filter(category__isnull=False)
+    subCategories = SubCategory.objects.all()
     serializer = SubCategorySerializer(subCategories, many=True)
     return Response(serializer.data)
 
@@ -38,12 +34,9 @@ def getSubCategories(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getSubCategory(request, pk):
-    try:
-        subCategory = SubCategory.objects.get(_id=pk)
-        serializer = SubCategorySerializer(subCategory, many=False)
-        return Response(serializer.data)
-    except SubCategory.DoesNotExist:
-        return Response({'detail': 'SubCategory not found'}, status=status.HTTP_404_NOT_FOUND)
+    subCategory = SubCategory.objects.get(_id=pk)
+    serializer = SubCategorySerializer(subCategory, many=False)
+    return Response(serializer.data)
 
 
 @api_view(['POST'])
@@ -74,9 +67,11 @@ def updateCategory(request, pk):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteCategory(request, pk):
-    result = delete_category(pk)
-    result['detail'] = 'Category was successfully deleted'
-    return Response(result, status=status.HTTP_200_OK)
+    category = Category.objects.get(_id=pk)
+    category.delete()
+
+    content = {'detail': 'Category was successfully deleted'}
+    return Response(content, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -126,6 +121,8 @@ def uploadImage(request):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteSubCategory(request, pk):
-    result = delete_subcategory(pk)
-    result['detail'] = 'Sub category was successfully deleted'
-    return Response(result, status=status.HTTP_200_OK)
+    subCategory = SubCategory.objects.get(_id=pk)
+    subCategory.delete()
+
+    content = {'detail': 'Sub category was successfully deleted'}
+    return Response(content, status=status.HTTP_200_OK)

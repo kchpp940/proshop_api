@@ -213,7 +213,9 @@ DJOSER = {
         'user_create': 'users.serializers.UserSerializer',
         'user': 'users.serializers.UserSerializer',
         'current_user': 'users.serializers.UserSerializer',
-        'user_delete': 'djoser.serializers.UserDeleteSerializer'
+        'user_delete': 'djoser.serializers.UserDeleteSerializer',
+        'set_username': 'users.serializers.CustomSetUsernameSerializer',
+        'username_reset_confirm': 'users.serializers.CustomUsernameResetConfirmSerializer',
     }
 
 }
@@ -227,6 +229,21 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
     'openid',
 ]
 SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ['first_name', 'last_name']
+
+SOCIAL_AUTH_PIPELINE = (
+    'social_core.pipeline.social_auth.social_details',
+    'social_core.pipeline.social_auth.social_uid',
+    'social_core.pipeline.social_auth.auth_allowed',
+    'users.pipeline.associate_by_normalized_email',
+    'social_core.pipeline.social_auth.social_user',
+    'social_core.pipeline.user.get_username',
+    'users.pipeline.normalize_email_pipeline',
+    'social_core.pipeline.social_auth.associate_by_email',
+    'social_core.pipeline.user.create_user',
+    'social_core.pipeline.social_auth.associate_user',
+    'social_core.pipeline.social_auth.load_extra_data',
+    'social_core.pipeline.user.user_details',
+)
 
 
 AUTH_USER_MODEL = 'users.UserAccount'

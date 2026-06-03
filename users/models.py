@@ -1,13 +1,21 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.core.exceptions import ValidationError
 
 
 class UserAccountManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
+        from .utils import normalize_email, check_email_availability
+
         if not email:
             raise ValueError('Users must have an email address')
 
-        email = self.normalize_email(email)
+        email = normalize_email(email)
+
+        is_available, error_msg = check_email_availability(email)
+        if not is_available:
+            raise ValidationError(error_msg)
+
         user = self.model(email=email, **extra_fields)
 
         user.set_password(password)
