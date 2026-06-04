@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory, OrderStatusHistory
+from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory, ImportTask
 from users.serializers import UserSerializer
 
 
@@ -65,25 +65,6 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class OrderStatusHistorySerializer(serializers.ModelSerializer):
-    operator = serializers.SerializerMethodField(read_only=True)
-    status_display = serializers.CharField(
-        source='get_status_display', read_only=True)
-
-    class Meta:
-        model = OrderStatusHistory
-        fields = '__all__'
-
-    def get_operator(self, obj):
-        if obj.operator:
-            return {
-                '_id': obj.operator.id,
-                'name': obj.operator.get_full_name() or obj.operator.email,
-                'email': obj.operator.email,
-            }
-        return None
-
-
 class AddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Address
@@ -106,9 +87,6 @@ class OrderSerializer(serializers.ModelSerializer):
     orderItems = serializers.SerializerMethodField(read_only=True)
     shippingAddress = serializers.SerializerMethodField(read_only=True)
     user = serializers.SerializerMethodField(read_only=True)
-    status_history = serializers.SerializerMethodField(read_only=True)
-    status_display = serializers.CharField(
-        source='get_status_display', read_only=True)
 
     class Meta:
         model = Order
@@ -132,7 +110,15 @@ class OrderSerializer(serializers.ModelSerializer):
         serializer = UserSerializer(obj.user, many=False)
         return serializer.data
 
-    def get_status_history(self, obj):
-        history = obj.status_history.all()
-        serializer = OrderStatusHistorySerializer(history, many=True)
-        return serializer.data
+
+class ImportTaskSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ImportTask
+        fields = '__all__'
+
+    def get_created_by(self, obj):
+        if obj.created_by:
+            return obj.created_by.email
+        return None
