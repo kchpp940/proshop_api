@@ -1,7 +1,3 @@
-from django.utils.http import urlsafe_base64_decode
-from django.contrib.auth.tokens import default_token_generator
-from django.contrib.auth.models import User
-from django.contrib.auth import get_user_model
 from django.views.generic import TemplateView
 
 from djoser.conf import settings
@@ -15,8 +11,20 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 import os
 
-
 from .serializers import UserSerializer
+from .services import (
+    get_account_by_email,
+    get_account_by_id,
+    get_account_by_uidb64,
+    check_account_active,
+    check_account_inactive,
+    check_activation_token,
+    check_password,
+    check_email_available,
+    activate_account,
+    normalize_email,
+)
+from django.contrib.auth import get_user_model
 User = get_user_model()
 
 
@@ -26,26 +34,17 @@ def custom_login_view(request):
     email = request.data['email']
     password = request.data['password']
 
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        return Response({'detail': 'There is no account for this email address'}, status=status.HTTP_404_NOT_FOUND)
+    user = get_account_by_email(email)
+    check_password(user, password)
+    check_account_active(user)
 
-    if user.check_password(password):
+    refresh = RefreshToken.for_user(user)
+    token = {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
 
-        if user.is_active:
-            refresh = RefreshToken.for_user(user)
-
-            token = {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
-
-            return Response(token, status=status.HTTP_200_OK)
-        else:
-            return Response({'detail': 'Your account is not activated'}, status=status.HTTP_401_UNAUTHORIZED)
-    else:
-        return Response({'detail': 'Your password is incorrect'}, status=status.HTTP_401_UNAUTHORIZED)
+    return Response(token, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -54,33 +53,22 @@ def custom_activation_view(request):
     uidb64 = request.data['uid']
     token = request.data['token']
 
-    try:
-        uid = urlsafe_base64_decode(uidb64).decode()
-        user = User.objects.get(pk=uid)
-    except (User.DoesNotExist, ValueError, TypeError, OverflowError):
-        return Response({'detail': 'Invalid activation link'}, status=status.HTTP_400_BAD_REQUEST)
+    user = get_account_by_uidb64(uidb64)
+    check_account_inactive(user)
+    check_activation_token(user, token)
+    activate_account(user)
 
-    if user.is_active:
-        return Response({'detail': 'Your account is already activated'}, status=status.HTTP_400_BAD_REQUEST)
-    else:
-        if default_token_generator.check_token(user, token):
-            user.is_active = True
-            user.save()
+    context = {'user': user}
+    to = [get_user_email(user)]
+    settings.EMAIL.confirmation(request, context).send(to)
 
-            context = {'user': user}
-            to = [get_user_email(user)]
-            settings.EMAIL.confirmation(request, context).send(to)
+    refresh = RefreshToken.for_user(user)
+    token = {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
 
-            refresh = RefreshToken.for_user(user)
-
-            token = {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
-
-            return Response(token, status=status.HTTP_200_OK)
-        else:
-            return Response({'detail': 'Your token is incorrect'}, status=status.HTTP_401_UNAUTHORIZED)
+    return Response(token, status=status.HTTP_200_OK)
 
 
 class GoogleCodeVerificationView(TemplateView):
@@ -101,10 +89,7 @@ class GoogleCodeVerificationView(TemplateView):
 def custom_request_password_reset(request):
     email = request.data['email']
 
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        return Response({'detail': 'There is no account for this email address'}, status=status.HTTP_404_NOT_FOUND)
+    user = get_account_by_email(email)
 
     context = {'user': user}
     to = [get_user_email(user)]
@@ -140,7 +125,7 @@ def getUsers(request):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteUser(request, pk):
-    userToDelete = User.objects.get(id=pk)
+    userToDelete = get_account_by_id(pk)
     userToDelete.delete()
 
     content = {'detail': 'User deleted successfully'}
@@ -150,7 +135,7 @@ def deleteUser(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def getUserById(request, pk):
-    user = User.objects.get(id=pk)
+    user = get_account_by_id(pk)
     serializer = UserSerializer(user, many=False)
     return Response(serializer.data)
 
@@ -158,18 +143,20 @@ def getUserById(request, pk):
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
 def updateUser(request, pk):
-    user = User.objects.get(id=pk)
-
+    user = get_account_by_id(pk)
     data = request.data
+
+    if 'email' in data and data['email'] != user.email:
+        check_email_available(data['email'], exclude_user_id=user.pk)
+        data['email'] = normalize_email(data['email'])
 
     user.first_name = data['first_name']
     user.last_name = data['last_name']
-    user.email = data['email']
+    user.email = data.get('email', user.email)
     user.is_staff = data['isAdmin']
     user.is_active = data['isActive']
 
     user.save()
 
     serializer = UserSerializer(user, many=False)
-
     return Response(serializer.data)

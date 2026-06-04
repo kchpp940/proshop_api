@@ -118,34 +118,6 @@ class Address(models.Model):
         return self.address
 
 
-class ImportTask(models.Model):
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('processing', 'Processing'),
-        ('completed', 'Completed'),
-        ('failed', 'Failed'),
-    ]
-
-    _id = models.AutoField(primary_key=True, editable=False)
-    created_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True)
-    file_name = models.CharField(max_length=255, null=True, blank=True)
-    file_format = models.CharField(max_length=10, null=True, blank=True)
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default='pending')
-    total_rows = models.IntegerField(default=0)
-    created_count = models.IntegerField(default=0)
-    updated_count = models.IntegerField(default=0)
-    skipped_count = models.IntegerField(default=0)
-    failed_count = models.IntegerField(default=0)
-    error_message = models.TextField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    finished_at = models.DateTimeField(null=True, blank=True)
-
-    def __str__(self):
-        return f"ImportTask {self._id} - {self.status}"
-
-
 class ShippingAddress(models.Model):
     order = models.OneToOneField(
         Order, on_delete=models.CASCADE, null=True, blank=True)

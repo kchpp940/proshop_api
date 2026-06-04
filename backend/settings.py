@@ -172,6 +172,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'EXCEPTION_HANDLER': 'users.exceptions.unified_exception_handler',
 }
 
 AUTHENTICATION_BACKENDS = (
@@ -213,7 +214,10 @@ DJOSER = {
         'user_create': 'users.serializers.UserSerializer',
         'user': 'users.serializers.UserSerializer',
         'current_user': 'users.serializers.UserSerializer',
-        'user_delete': 'djoser.serializers.UserDeleteSerializer'
+        'user_delete': 'djoser.serializers.UserDeleteSerializer',
+        'password_reset': 'users.serializers.SendEmailResetSerializer',
+        'activation': 'users.serializers.ActivationSerializer',
+        'password_reset_confirm': 'djoser.serializers.PasswordResetConfirmSerializer',
     }
 
 }
@@ -227,6 +231,21 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
     'openid',
 ]
 SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ['first_name', 'last_name']
+
+SOCIAL_AUTH_PIPELINE = (
+    'social_core.pipeline.social_auth.social_details',
+    'social_core.pipeline.social_auth.social_uid',
+    'social_core.pipeline.social_auth.auth_allowed',
+    'social_core.pipeline.social_auth.social_user',
+    'users.pipeline.normalize_user_email',
+    'social_core.pipeline.user.get_username',
+    'users.pipeline.associate_by_email_normalized',
+    'social_core.pipeline.user.create_user',
+    'users.pipeline.check_user_active',
+    'social_core.pipeline.social_auth.associate_user',
+    'social_core.pipeline.social_auth.load_extra_data',
+    'social_core.pipeline.user.user_details',
+)
 
 
 AUTH_USER_MODEL = 'users.UserAccount'
