@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory, ImportTask
+from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory
 from users.serializers import UserSerializer
 
 
@@ -109,16 +109,3 @@ class OrderSerializer(serializers.ModelSerializer):
     def get_user(self, obj):
         serializer = UserSerializer(obj.user, many=False)
         return serializer.data
-
-
-class ImportTaskSerializer(serializers.ModelSerializer):
-    created_by = serializers.SerializerMethodField(read_only=True)
-
-    class Meta:
-        model = ImportTask
-        fields = '__all__'
-
-    def get_created_by(self, obj):
-        if obj.created_by:
-            return obj.created_by.email
-        return None
