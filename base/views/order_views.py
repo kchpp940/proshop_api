@@ -7,7 +7,6 @@ from rest_framework import status
 
 from base.models import Product, Order, OrderItem, Address, ShippingAddress
 from base.serializer import OrderSerializer
-from base.services import OrderService
 
 
 @api_view(['POST'])
@@ -16,37 +15,41 @@ def addOrderItems(request):
     user = request.user
     data = request.data
 
-    payment_method = data.get('paymentMethod', '')
-    address_id = data.get('address_id')
-    coupon_code = data.get('couponCode')
+    orderItems = data['orderItems']
 
-    if not address_id:
-        return Response(
-            {'detail': 'Address ID is required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    if not payment_method:
-        return Response(
-            {'detail': 'Payment method is required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    try:
-        order = OrderService.create_order(
+    if orderItems and len(orderItems) == 0:
+        return Response({'detail': 'No order items'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        order = Order.objects.create(
             user=user,
-            address_id=address_id,
-            payment_method=payment_method,
-            coupon_code=coupon_code,
-        )
-    except ValueError as e:
-        return Response(
-            {'detail': str(e)},
-            status=status.HTTP_400_BAD_REQUEST
+            paymentMethod=data['paymentMethod'],
+            taxPrice=data['taxPrice'],
+            shippingPrice=data['shippingPrice'],
+            totalPrice=data['totalPrice'],
         )
 
-    serializer = OrderSerializer(order, many=False)
-    return Response(serializer.data)
+        address = Address.objects.get(_id=data['address_id'])
+
+        ShippingAddress.objects.create(order=order, address=address)
+
+        for orderItem in orderItems:
+            product = Product.objects.get(_id=orderItem['productId'])
+
+            # create order item
+            item = OrderItem.objects.create(
+                order=order,
+                product=product,
+                name=product.name,
+                qty=orderItem['quantity'],
+                price=orderItem['price'],
+                image=product.image.url
+            )
+
+            product.countInStock -= item.qty
+            product.save()
+
+        serializer = OrderSerializer(order, many=False)
+        return Response(serializer.data)
 
 
 @api_view(['GET'])
@@ -61,22 +64,18 @@ def getOrderById(request, pk):
             serializer = OrderSerializer(order, many=False)
             return Response(serializer.data)
         else:
-            return Response(
-                {'detail': 'You are not authorized to view this order'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-    except Order.DoesNotExist:
-        return Response(
-            {'detail': 'Order does not exist'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+            return Response({'detail': 'You are not authorized to view this order'}, status=status.HTTP_401_UNAUTHORIZED)
+    except:
+        return Response({'detail': 'Order does not exist'}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def getUserOrders(request):
     user = request.user
+
     orders = user.order_set.all()
+
     serializer = OrderSerializer(orders, many=True)
     return Response(serializer.data)
 
@@ -92,19 +91,12 @@ def getOrders(request):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def updateOrderToPaid(request, pk):
-    try:
-        order = Order.objects.get(_id=pk)
-        OrderService.update_order_to_paid(order, operator=request.user)
-    except Order.DoesNotExist:
-        return Response(
-            {'detail': 'Order does not exist'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except ValueError as e:
-        return Response(
-            {'detail': str(e)},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    order = Order.objects.get(_id=pk)
+
+    order.isPaid = True
+    order.paidAt = datetime.now()
+
+    order.save()
 
     return Response('Order paid')
 
@@ -112,19 +104,12 @@ def updateOrderToPaid(request, pk):
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
 def updateOrderToDelivered(request, pk):
-    try:
-        order = Order.objects.get(_id=pk)
-        OrderService.update_order_to_delivered(order, operator=request.user)
-    except Order.DoesNotExist:
-        return Response(
-            {'detail': 'Order does not exist'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except ValueError as e:
-        return Response(
-            {'detail': str(e)},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    order = Order.objects.get(_id=pk)
+
+    order.isDelivered = True
+    order.deliveredAt = datetime.now()
+
+    order.save()
 
     serializer = OrderSerializer(order, many=False)
     return Response(serializer.data)

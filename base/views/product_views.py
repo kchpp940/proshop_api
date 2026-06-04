@@ -5,6 +5,7 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
+from base.services.import_pipeline import run_pipeline, finalize_task
 
 
 @api_view(['GET'])
@@ -141,6 +142,97 @@ def getHotCategories(request):
     hot_categories = hot_categories[:10]
 
     return Response(hot_categories)
+
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def importProducts(request):
+    from base.models import ImportTask
+    from base.services.row_result import RowResult
+
+    file = request.FILES.get('file')
+    if not file:
+        task = ImportTask.objects.create(
+            created_by=request.user,
+            file_name='',
+            file_format='',
+            status='failed',
+        )
+        result = RowResult(
+            row_number=0,
+            status='failed',
+            errors=['No file provided'],
+        )
+        task = finalize_task(task, [result], status='failed', error_message='No file provided')
+        return Response({
+            'task': {
+                'id': task._id,
+                'status': task.status,
+                'file_name': task.file_name,
+                'total_rows': task.total_rows,
+                'created_count': task.created_count,
+                'updated_count': task.updated_count,
+                'skipped_count': task.skipped_count,
+                'failed_count': task.failed_count,
+                'error_message': task.error_message,
+            },
+            'rows': [result.to_dict()],
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    file_format = request.data.get('format')
+    if not file_format:
+        file_name = getattr(file, 'name', '')
+        file_format = 'csv' if file_name.endswith('.csv') else 'json'
+
+    if file_format not in ('csv', 'json'):
+        task = ImportTask.objects.create(
+            created_by=request.user,
+            file_name=getattr(file, 'name', ''),
+            file_format=file_format or '',
+            status='failed',
+        )
+        result = RowResult(
+            row_number=0,
+            status='failed',
+            errors=[f'Unsupported format: {file_format}. Use csv or json.'],
+        )
+        task = finalize_task(task, [result], status='failed',
+                               error_message=f'Unsupported format: {file_format}. Use csv or json.')
+        return Response({
+            'task': {
+                'id': task._id,
+                'status': task.status,
+                'file_name': task.file_name,
+                'total_rows': task.total_rows,
+                'created_count': task.created_count,
+                'updated_count': task.updated_count,
+                'skipped_count': task.skipped_count,
+                'failed_count': task.failed_count,
+                'error_message': task.error_message,
+            },
+            'rows': [result.to_dict()],
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    task, results = run_pipeline(file, file_format, request.user)
+
+    response_status = status.HTTP_200_OK
+    if task.status == 'failed' and task.error_message:
+        response_status = status.HTTP_400_BAD_REQUEST
+
+    return Response({
+        'task': {
+            'id': task._id,
+            'status': task.status,
+            'file_name': task.file_name,
+            'total_rows': task.total_rows,
+            'created_count': task.created_count,
+            'updated_count': task.updated_count,
+            'skipped_count': task.skipped_count,
+            'failed_count': task.failed_count,
+            'error_message': task.error_message,
+        },
+        'rows': [r.to_dict() for r in results],
+    }, status=response_status)
 
 
 @api_view(['POST'])
