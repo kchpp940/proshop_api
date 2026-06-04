@@ -1,4 +1,3 @@
-from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
@@ -6,7 +5,6 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
-from base.services.product_admin_service import ProductAdminService
 
 
 @api_view(['GET'])
@@ -61,12 +59,18 @@ def getProduct(request, pk):
 def updateProduct(request, pk):
     data = request.data
 
-    try:
-        product = ProductAdminService.update_product(pk, data, request.user)
-    except ObjectDoesNotExist as e:
-        return Response({'detail': str(e)}, status=status.HTTP_404_NOT_FOUND)
-    except ValidationError as e:
-        return Response({'detail': e.message_dict if hasattr(e, 'message_dict') else str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    product = Product.objects.get(_id=pk)
+
+    category = SubCategory.objects.get(slug=data['category'])
+
+    product.name = data['name']
+    product.price = data['price']
+    product.brand = data['brand']
+    product.category = category
+    product.countInStock = data['countInStock']
+    product.description = data['description']
+
+    product.save()
 
     serializer = ProductSerializer(product, many=False)
     return Response(serializer.data)
@@ -77,10 +81,14 @@ def updateProduct(request, pk):
 def createProduct(request):
     user = request.user
 
-    try:
-        product = ProductAdminService.create_product(user, request.data)
-    except ValidationError as e:
-        return Response({'detail': e.message_dict if hasattr(e, 'message_dict') else str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    product = Product.objects.create(
+        user=user,
+        name='Sample Name',
+        description='',
+        price=0,
+        brand='Sample Brand',
+        countInStock=0,
+    )
 
     serializer = ProductSerializer(product, many=False)
     return Response(serializer.data)
@@ -89,10 +97,8 @@ def createProduct(request):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteProduct(request, pk):
-    try:
-        ProductAdminService.delete_product(pk, request.user)
-    except ObjectDoesNotExist as e:
-        return Response({'detail': str(e)}, status=status.HTTP_404_NOT_FOUND)
+    product = Product.objects.get(_id=pk)
+    product.delete()
 
     content = {'detail': 'Product deleted successfully'}
     return Response(content, status=status.HTTP_200_OK)
@@ -130,6 +136,7 @@ def getHotCategories(request):
             'clicks': category_clicks
         })
 
+    # Sort by clicks in descending order and get top 10
     hot_categories.sort(key=lambda x: x['clicks'], reverse=True)
     hot_categories = hot_categories[:10]
 
@@ -142,11 +149,10 @@ def uploadImage(request):
     data = request.data
 
     product_id = data['product_id']
+    product = Product.objects.get(_id=product_id)
 
-    try:
-        product = ProductAdminService.upload_product_image(product_id, request.FILES.get('image'))
-    except ObjectDoesNotExist as e:
-        return Response({'detail': str(e)}, status=status.HTTP_404_NOT_FOUND)
+    product.image = request.FILES.get('image')
+    product.save()
 
     content = {'detail': 'Image was uploaded'}
 
