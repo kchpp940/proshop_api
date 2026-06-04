@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework import status
 
 from base.models import Product, Review, SubCategory
-from base.serializer import ProductSerializer, ReviewSerializer
+from base.serializers import ProductSerializer, ReviewSerializer
 
 
 @api_view(['GET'])

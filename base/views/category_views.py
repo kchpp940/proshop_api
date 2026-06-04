@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework import status
 
 from base.models import Category, SubCategory
-from base.serializer import CategorySerializer, SubCategorySerializer
+from base.serializers import CategorySerializer, SubCategorySerializer
 
 
 @api_view(['GET'])
