@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework import status
 
 from base.models import Product, Order, OrderItem, Address, ShippingAddress
-from base.serializers import OrderSerializer
+from base.serializer import OrderSerializer
 
 
 @api_view(['POST'])

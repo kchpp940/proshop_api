@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework import status
 
 from base.models import Address
-from base.serializers import AddressSerializer
+from base.serializer import AddressSerializer
 
 
 @api_view(['GET'])
