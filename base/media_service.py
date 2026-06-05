@@ -9,11 +9,34 @@ MAX_FILE_SIZE = 5 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'}
 
 
+def normalize_path(path):
+    if not path:
+        return ''
+    return path.strip('/\\')
+
+
 def get_storage_location():
     location = getattr(default_storage, 'location', None)
-    if location:
-        return location.rstrip('/')
-    return None
+    return normalize_path(location)
+
+
+def is_subfolder_in_location(subfolder, location):
+    if not location:
+        return False
+    if not subfolder:
+        return True
+
+    subfolder_norm = normalize_path(subfolder)
+    location_norm = normalize_path(location)
+
+    return location_norm.endswith(subfolder_norm) or location_norm == subfolder_norm
+
+
+def get_effective_subfolder(subfolder):
+    storage_loc = get_storage_location()
+    if is_subfolder_in_location(subfolder, storage_loc):
+        return ''
+    return normalize_path(subfolder)
 
 
 def validate_file(file):
@@ -32,19 +55,11 @@ def generate_filename(original_name, subfolder=''):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     unique_id = uuid.uuid4().hex[:8]
 
-    storage_location = get_storage_location()
+    effective_subfolder = get_effective_subfolder(subfolder)
+    filename = f'{timestamp}_{unique_id}{ext}'
 
-    if subfolder:
-        subfolder = subfolder.rstrip('/')
-
-        if storage_location and storage_location == subfolder:
-            prefix = ''
-        else:
-            prefix = subfolder + '/'
-    else:
-        prefix = ''
-
-    filename = f'{prefix}{timestamp}_{unique_id}{ext}'
+    if effective_subfolder:
+        return f'{effective_subfolder}/{filename}'
     return filename
 
 
@@ -52,29 +67,29 @@ def get_media_url(file_path):
     if not file_path:
         return ''
 
+    norm_path = normalize_path(file_path)
+
     if hasattr(default_storage, 'url'):
         try:
-            return default_storage.url(file_path)
+            return default_storage.url(norm_path)
         except Exception:
             pass
 
     if settings.MEDIA_URL.startswith(('http://', 'https://')):
-        return f'{settings.MEDIA_URL.rstrip("/")}/{file_path.lstrip("/")}'
+        return f'{settings.MEDIA_URL.rstrip("/")}/{norm_path}'
 
-    return f'{settings.MEDIA_URL.rstrip("/")}/{file_path.lstrip("/")}'
+    return f'{settings.MEDIA_URL.rstrip("/")}/{norm_path}'
 
 
 def save_uploaded_file(file, subfolder=''):
     validate_file(file)
 
     relative_path = generate_filename(file.name, subfolder)
-
     saved_path = default_storage.save(relative_path, file)
-
     url = get_media_url(saved_path)
 
     return {
-        'path': saved_path,
+        'path': normalize_path(saved_path),
         'url': url,
         'name': os.path.basename(saved_path),
         'size': file.size,
@@ -85,9 +100,11 @@ def delete_file(file_path):
     if not file_path:
         return False
 
+    norm_path = normalize_path(file_path)
+
     try:
-        if default_storage.exists(file_path):
-            default_storage.delete(file_path)
+        if default_storage.exists(norm_path):
+            default_storage.delete(norm_path)
             return True
     except Exception:
         pass
