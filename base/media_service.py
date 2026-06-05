@@ -7,7 +7,13 @@ from django.core.files.storage import default_storage
 
 MAX_FILE_SIZE = 5 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'}
-DEFAULT_SUBFOLDER = 'images'
+
+
+def get_storage_location():
+    location = getattr(default_storage, 'location', None)
+    if location:
+        return location.rstrip('/')
+    return None
 
 
 def validate_file(file):
@@ -21,13 +27,20 @@ def validate_file(file):
     return True
 
 
-def generate_filename(original_name, subfolder=DEFAULT_SUBFOLDER):
+def generate_filename(original_name, subfolder=''):
     ext = os.path.splitext(original_name)[1].lower()
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     unique_id = uuid.uuid4().hex[:8]
 
+    storage_location = get_storage_location()
+
     if subfolder:
-        prefix = subfolder.rstrip('/') + '/'
+        subfolder = subfolder.rstrip('/')
+
+        if storage_location and storage_location == subfolder:
+            prefix = ''
+        else:
+            prefix = subfolder + '/'
     else:
         prefix = ''
 
@@ -51,7 +64,7 @@ def get_media_url(file_path):
     return f'{settings.MEDIA_URL.rstrip("/")}/{file_path.lstrip("/")}'
 
 
-def save_uploaded_file(file, subfolder=DEFAULT_SUBFOLDER):
+def save_uploaded_file(file, subfolder=''):
     validate_file(file)
 
     relative_path = generate_filename(file.name, subfolder)
@@ -82,7 +95,7 @@ def delete_file(file_path):
     return False
 
 
-def save_image_upload(file, subfolder=DEFAULT_SUBFOLDER, old_image_path=None):
+def save_image_upload(file, subfolder='', old_image_path=None):
     if old_image_path and old_image_path != 'placeholder.png':
         delete_file(old_image_path)
 
