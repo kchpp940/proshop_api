@@ -70,7 +70,7 @@ def deleteCategory(request, pk):
     category = Category.objects.get(_id=pk)
     category.delete()
 
-    content = {'detail': 'Category was successfully deleted', 'code': 'category_deleted'}
+    content = {'detail': 'Category was successfully deleted'}
     return Response(content, status=status.HTTP_200_OK)
 
 
@@ -114,7 +114,7 @@ def uploadImage(request):
     subCategory.image = request.FILES.get('image')
     subCategory.save()
 
-    content = {'detail': 'Image uploaded', 'code': 'image_uploaded'}
+    content = {'detail': 'Image uploaded'}
     return Response(content, status=status.HTTP_200_OK)
 
 
@@ -124,5 +124,5 @@ def deleteSubCategory(request, pk):
     subCategory = SubCategory.objects.get(_id=pk)
     subCategory.delete()
 
-    content = {'detail': 'Sub category was successfully deleted', 'code': 'sub_category_deleted'}
+    content = {'detail': 'Sub category was successfully deleted'}
     return Response(content, status=status.HTTP_200_OK)

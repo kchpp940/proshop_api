@@ -132,7 +132,7 @@ def custom_request_password_reset(request):
     to = [get_user_email(user)]
     settings.EMAIL.password_reset(request, context).send(to)
 
-    return Response({'detail': 'Password reset email has been sent', 'code': 'password_reset_sent'}, status=status.HTTP_200_OK)
+    return Response({'detail': 'Password reset email has been sent'}, status=status.HTTP_200_OK)
 
 
 @api_view(['PUT'])
@@ -171,7 +171,7 @@ def deleteUser(request, pk):
         )
     userToDelete.delete()
 
-    content = {'detail': 'User deleted successfully', 'code': 'user_deleted'}
+    content = {'detail': 'User deleted successfully'}
     return Response(content, status=status.HTTP_200_OK)
 
 

@@ -101,7 +101,7 @@ def deleteProduct(request, pk):
     product = Product.objects.get(_id=pk)
     product.delete()
 
-    content = {'detail': 'Product deleted successfully', 'code': 'product_deleted'}
+    content = {'detail': 'Product deleted successfully'}
     return Response(content, status=status.HTTP_200_OK)
 
 
@@ -112,7 +112,7 @@ def incrementClickCount(request, pk):
     product.clickCount += 1
     product.save()
 
-    content = {'detail': 'Click count was incremented', 'code': 'click_count_incremented'}
+    content = {'detail': 'Click count was incremented'}
     return Response(content, status=status.HTTP_200_OK)
 
 
@@ -154,7 +154,7 @@ def uploadImage(request):
     product.image = request.FILES.get('image')
     product.save()
 
-    content = {'detail': 'Image was uploaded', 'code': 'image_uploaded'}
+    content = {'detail': 'Image was uploaded'}
 
     return Response(content, status=status.HTTP_202_ACCEPTED)
 

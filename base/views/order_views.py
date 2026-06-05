@@ -107,7 +107,7 @@ def updateOrderToPaid(request, pk):
 
     order.save()
 
-    return Response({'detail': 'Order paid', 'code': 'order_paid'}, status=status.HTTP_200_OK)
+    return Response('Order paid')
 
 
 @api_view(['PUT'])

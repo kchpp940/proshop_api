@@ -5,7 +5,6 @@ from rest_framework import status
 
 from base.models import Address
 from base.serializer import AddressSerializer
-from base.exceptions import ErrorCode
 
 
 @api_view(['GET'])
@@ -74,7 +73,4 @@ def deleteAddress(request, pk):
     address = Address.objects.get(_id=pk)
     address.delete()
 
-    return Response(
-        {'detail': 'Address deleted successfully', 'code': 'address_deleted', 'id': address._id},
-        status=status.HTTP_200_OK
-    )
+    return Response(address._id, status=status.HTTP_200_OK)
