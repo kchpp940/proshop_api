@@ -29,6 +29,13 @@ jobs:
       
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Run Migration Guard (pre-deployment check)
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DJANGO_SETTINGS_MODULE: backend.settings
+        run: |
+          python manage.py migration_guard
         
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
       

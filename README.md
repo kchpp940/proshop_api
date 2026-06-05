@@ -35,10 +35,13 @@ The API has most of the features you would expect to find in an ecommerce web ap
 ### Prerequisites
 
 - [Python 3.6 or higher](https://www.python.org/downloads/)
-- [PostgreSQL](https://www.postgresql.org/) (for production)
-- SQLite3 (built-in for development)
+- [PostgreSQL](https://www.postgresql.org/) (optional) - You can use any other database of your choice
 
-### Quick Start
+### Installation
+
+I Will be providing a detailed documentation on this soon.
+
+<!--
 
 1. Clone the repository
 
@@ -46,91 +49,45 @@ The API has most of the features you would expect to find in an ecommerce web ap
    git clone https://github.com/justicenyaga/proshop.git && cd proshop
    ```
 
-2. Create and activate a virtual environment
+2. Create a virtual environment
 
    ```bash
-   python -m venv venv
+   virtualenv -p python3 venv
+   ```
+
+3. Activate the virtual environment
+
+   ```bash
    source venv/bin/activate
    ```
 
-3. Install dependencies
+4. Install the dependencies
 
    ```bash
    pip install -r requirements.txt
    ```
 
-4. Set up environment variables
+5. Add the environment variables
 
-   Create a `.env` file in the project root:
+   #### option 1: create a .env file in the root directory and add the following environment variables
 
-   ```bash
-   cp .env.example .env
-   # Edit .env with your actual values
+   ```
+   SECRET_KEY=your_secret_key
    ```
 
-   **Required Environment Variables:**
+   #### option 2: export the environment variables in your terminal
 
-   | Variable | Required | Description | Source |
-   |----------|----------|-------------|--------|
-   | `SECRET_KEY` | Yes | Django secret key for cryptographic signing | [settings.py](file:///Users/pkcha/proshop_api/backend/settings.py#L29) |
-   | `ENVIRONMENT` | No | `development` (default) or `production` | [settings.py](file:///Users/pkcha/proshop_api/backend/settings.py#L18) |
-   | `DOMAIN` | Production | Domain for email templates and OAuth redirects | [settings.py](file:///Users/pkcha/proshop_api/backend/settings.py#L191) |
-   | `SITE_NAME` | Production | Site name for email templates | [settings.py](file:///Users/pkcha/proshop_api/backend/settings.py#L192) |
-   | `EMAIL_HOST_USER` | Production | SMTP email username | [settings.py](file:///Users/pkcha/proshop_api/backend/settings.py#L118) |
-   | `EMAIL_HOST_PASSWORD` | Production | SMTP email password | [settings.py](file:///Users/pkcha/proshop_api/backend/settings.py#L119) |
-   | `SOCIAL_AUTH_GOOGLE_OAUTH2_KEY` | Optional | Google OAuth2 client ID | [settings.py](file:///Users/pkcha/proshop_api/backend/settings.py#L221) |
-   | `SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET` | Optional | Google OAuth2 client secret | [settings.py](file:///Users/pkcha/proshop_api/backend/settings.py#L222) |
-
-   **Production-only (Azure):**
-
-   | Variable | Required | Description | Source |
-   |----------|----------|-------------|--------|
-   | `APP_DB_NAME` | Yes | PostgreSQL database name | [azure_settings.py](file:///Users/pkcha/proshop_api/backend/azure_settings.py#L22) |
-   | `POSTGRES_ADMIN_USER` | Yes | PostgreSQL admin username | [azure_settings.py](file:///Users/pkcha/proshop_api/backend/azure_settings.py#L23) |
-   | `POSTGRES_ADMIN_PASSWORD` | Yes | PostgreSQL admin password | [azure_settings.py](file:///Users/pkcha/proshop_api/backend/azure_settings.py#L24) |
-   | `POSTGRES_HOST` | Yes | PostgreSQL host address | [azure_settings.py](file:///Users/pkcha/proshop_api/backend/azure_settings.py#L25) |
-   | `AZ_STORAGE_ACCOUNT_NAME` | Yes | Azure storage account name | [azure_settings.py](file:///Users/pkcha/proshop_api/backend/azure_settings.py#L15) |
-   | `AZ_STORAGE_CONTAINER` | Yes | Azure storage container name | [azure_settings.py](file:///Users/pkcha/proshop_api/backend/azure_settings.py#L16) |
-   | `AZ_STORAGE_KEY` | Yes | Azure storage account key | [azure_settings.py](file:///Users/pkcha/proshop_api/backend/azure_settings.py#L17) |
-
-   **Optional (S3/DO Spaces):**
-
-   | Variable | Required | Description | Source |
-   |----------|----------|-------------|--------|
-   | `AWS_ACCESS_KEY_ID` | Optional | S3 access key ID | [cdn/conf.py](file:///Users/pkcha/proshop_api/backend/cdn/conf.py#L4) |
-   | `AWS_SECRET_ACCESS_KEY` | Optional | S3 secret access key | [cdn/conf.py](file:///Users/pkcha/proshop_api/backend/cdn/conf.py#L5) |
-
-5. **Run configuration check** (recommended before first start)
-
-   Lightweight check (no Django required, runs instantly):
    ```bash
-   bin/check_config.sh
+   export SECRET_KEY=your_secret_key
    ```
 
-   Full check (requires Django, validates DB connection etc.):
-   ```bash
-   python manage.py check_config
-   ```
-
-   Options:
-   ```bash
-   # Lightweight check, treat warnings as errors (CI/CD)
-   bin/check_config.sh --strict
-
-   # Full check, treat warnings as errors (CI/CD)
-   python manage.py check_config --strict
-
-   # Full check, only environment variables
-   python manage.py check_config --env-only
-   ```
-
-6. Run database migrations
+6. Run the migrations
 
    ```bash
    python manage.py migrate
    ```
 
-7. Load initial data (optional)
+7. Load the initial data
 
    ```bash
    python manage.py loaddata data.json
@@ -142,66 +99,65 @@ The API has most of the features you would expect to find in an ecommerce web ap
    python manage.py createsuperuser
    ```
 
-9. Start the development server
+9. Run the app
 
    ```bash
    python manage.py runserver
    ```
 
-   Open [http://localhost:8000](http://localhost:8000) in your browser.
+- Open [http://localhost:8000](http://localhost:8000) on your browser to view the app.
 
-### Development vs Production
+  ```
+  use the superuser credentials to login to the admin panel
+  ``` -->
 
-**Development (`ENVIRONMENT=development`):**
-- Uses SQLite3 database by default
-- `DEBUG=True` (warnings shown but not blocked)
-- `CORS_ORIGIN_ALLOW_ALL=True` (warnings shown but not blocked)
-- Local filesystem storage for media
+## Migration Guard - 数据库迁移发布前检查工具
 
-**Production (`ENVIRONMENT=production`):**
-- Requires PostgreSQL database
-- `DEBUG=False` enforced (error if True)
-- `CORS_ORIGIN_ALLOW_ALL` must be False (error if True)
-- Requires Azure Blob Storage configuration
-- All optional environment variables become required
+已集成 Migration Guard 工具，用于在部署前自动检查数据库迁移的完整性和安全性。
 
-### Deployment
+### 检查功能
 
-Configuration checks run in two passes to catch env var errors **before** Django even starts:
+- ✅ 同编号未合并分支检测（已合并仅 warning，未合并才阻断）
+- ✅ 缺失依赖检测
+- ✅ 迁移图完整性检查（多叶子节点、循环依赖）
+- ✅ 未生成迁移检测
+- ✅ 危险操作检测（DeleteModel、RemoveField 等）
+- ✅ 迁移与数据库状态一致性检查
 
-1. **Pass 1 — Lightweight bootstrap** (`bin/check_config.sh --strict`)
-   Pure shell, no Django dependency. Catches `SECRET_KEY` missing and storage
-   dir permission issues instantly, avoids Django startup crash loop.
+### 快速使用
 
-2. **Pass 2 — Full validation** (`python manage.py check_config`)
-   Requires Django, validates DB connectivity, CORS/JWT/OAuth/email configs.
-   Only runs if Pass 1 succeeds.
+```bash
+# 运行迁移检查（发现错误时阻止部署）
+python manage.py migration_guard
 
-| Scenario | Command to use |
-|----------|----------------|
-| **Local bootstrap** (first setup) | `bin/check_config.sh` (fast) or `python manage.py check_config` (full) |
-| **CI pipeline** (pre-build check) | `bin/check_config.sh --strict` |
-| **Release / deploy** (Procfile) | `bin/check_config.sh --strict && python manage.py check_config && python manage.py migrate` |
-| **Web server startup** (Procfile) | `gunicorn backend.wsgi` — **no check**, transient issues don't kill the process |
+# 仅检查不中断（用于预览问题）
+python manage.py migration_guard --check-only
 
-In [Procfile](file:///Users/pkcha/proshop_api/Procfile):
-- `release` — Pass 1 → Pass 2 → migrate (blocks deploy on any error)
-- `web` — starts gunicorn directly
-- `check` — runs both passes with strict mode on demand
+# 将错误视为警告
+python manage.py migration_guard --warn-only
+```
 
-### Configuration Check
+### 自动部署
 
-| Entry point | Requires Django | What it checks |
-|-------------|----------------|----------------|
-| [bin/check_config.sh](file:///Users/pkcha/proshop_api/bin/check_config.sh) | No | Env vars, dangerous configs, storage dirs |
-| [check_config](file:///Users/pkcha/proshop_api/base/management/commands/check_config.py) | Yes | Env vars, dangerous configs, DB connection, storage dirs, OAuth, CORS, JWT, email |
+已接入 Procfile `release` 链路，部署时按以下顺序执行（层层递进，轻量在前）：
 
-Full `check_config` checks:
-1. **Environment Variables** - Validates all required env vars with their source references
-2. **Dangerous Configs** - Blocks `DEBUG=True` and `ALLOWED_HOSTS=['*']` in production
-3. **Database Connection** - Attempts to connect to the configured database
-4. **Storage Directories** - Checks `STATIC_ROOT` and `MEDIA_ROOT` exist and are writable
-5. **OAuth Configuration** - Validates Google OAuth2 credentials and redirect URIs
-6. **CORS Configuration** - Checks CORS settings are appropriate for the environment
-7. **JWT Configuration** - Validates JWT settings and token lifetimes
-8. **Email Configuration** - Checks SMTP settings are complete in production
+1. `bin/check_config.sh --strict` — **最小启动前检查**（秒级）
+   - 仅检查 Django 启动必需的环境变量（SECRET_KEY、DJANGO_SETTINGS_MODULE）
+   - --strict 模式下增加数据库连接变量检查
+   - 失败快，避免无谓的 Django 进程启动
+
+2. `python manage.py check_config` — **Django 深度配置检查**
+   - 12 大类检查：系统检查、数据库连通性、JWT、OAuth、CORS、Email、DJOSER、
+     Static/Media 可写性、生产安全配置、认证配置等
+   - 区分 error（阻断）和 warning（提示）
+   - 生产环境执行额外的安全配置检查
+
+3. `python manage.py migration_guard` — **迁移完整性检查**
+   - 同编号未合并分支、缺失依赖、迁移图完整性、未生成迁移、
+     危险操作（DeleteModel/RemoveField）、迁移与数据库一致性
+
+4. `python manage.py migrate` — **执行数据库迁移**
+
+任何一步失败都会中止 release，部署回滚。
+
+详细文档请参考 [MIGRATION_GUARD.md](file:///Users/pkcha/proshop_api/MIGRATION_GUARD.md)。
