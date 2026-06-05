@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
-from base.media_service import validate_file, get_media_url, delete_file
+from base.media_service import save_image_upload
 
 
 @api_view(['GET'])
@@ -166,20 +166,19 @@ def uploadImage(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        validate_file(image_file)
+        saved_file = save_image_upload(
+            file=image_file,
+            subfolder='images',
+            old_image_path=product.image.name if product.image else None
+        )
 
-        if product.image and product.image.name != 'placeholder.png':
-            delete_file(product.image.name)
-
-        product.image = image_file
+        product.image = saved_file['path']
         product.save()
-
-        image_url = get_media_url(product.image.name)
 
         return Response({
             'detail': 'Image was uploaded',
-            'image_url': image_url,
-            'image_path': product.image.name
+            'image_url': saved_file['url'],
+            'image_path': saved_file['path']
         }, status=status.HTTP_202_ACCEPTED)
 
     except Product.DoesNotExist:

@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Category, SubCategory
 from base.serializer import CategorySerializer, SubCategorySerializer
-from base.media_service import validate_file, get_media_url, delete_file
+from base.media_service import save_image_upload
 
 
 @api_view(['GET'])
@@ -126,20 +126,19 @@ def uploadImage(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        validate_file(image_file)
+        saved_file = save_image_upload(
+            file=image_file,
+            subfolder='images',
+            old_image_path=subCategory.image.name if subCategory.image else None
+        )
 
-        if subCategory.image and subCategory.image.name != 'placeholder.png':
-            delete_file(subCategory.image.name)
-
-        subCategory.image = image_file
+        subCategory.image = saved_file['path']
         subCategory.save()
-
-        image_url = get_media_url(subCategory.image.name)
 
         return Response({
             'detail': 'Image uploaded',
-            'image_url': image_url,
-            'image_path': subCategory.image.name
+            'image_url': saved_file['url'],
+            'image_path': saved_file['path']
         }, status=status.HTTP_200_OK)
 
     except SubCategory.DoesNotExist:

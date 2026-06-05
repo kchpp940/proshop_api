@@ -46,25 +46,46 @@ In development mode, media files are stored locally:
 
 ### Cloud Storage (Production)
 
-In production mode (`ENVIRONMENT=production`), the project uses DigitalOcean Spaces (S3-compatible storage) via `django-storages`. The configuration is loaded from `backend/cdn/conf.py`:
+In production mode (`ENVIRONMENT=production`), the project uses DigitalOcean Spaces (S3-compatible storage) via `django-storages`. The configuration is defined in `backend/cdn/conf.py`:
 
-**Required environment variables:**
+**Hardcoded settings in `backend/cdn/conf.py`:**
+
+```python
+AWS_STORAGE_BUCKET_NAME = "proshop"
+AWS_S3_ENDPOINT_URL = "https://proshop.nyc3.digitaloceanspaces.com"
+AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
+AWS_DEFAULT_ACL = 'public-read'
+AWS_QUERYSTRING_AUTH = False
+DEFAULT_FILE_STORAGE = "backend.cdn.backends.MediaStorageS3Boto3Storage"
+```
+
+**Required environment variables (production only):**
 
 ```bash
 ENVIRONMENT=production
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_ACCESS_KEY_ID=your_digitalocean_spaces_key
+AWS_SECRET_ACCESS_KEY=your_digitalocean_spaces_secret
 ```
 
 **Storage backend:** `backend.cdn.backends.MediaStorageS3Boto3Storage`
-**Bucket location:** `images/`
+**CDN backend settings in `backend/cdn/backends.py`:**
+- `location = 'images'` (files stored in `images/` prefix)
+- `file_overwrite = False` (prevent filename collisions)
 
 ### Upload Configuration (Unified via Media Service)
 
+Both product and category image uploads go through the same `save_image_upload()` flow in `base/media_service.py`:
+
+1. **Validation**: File size (≤5MB) and extension check
+2. **Naming**: `images/{timestamp}_{uuid}.{ext}` (e.g., `images/20260605_123456_abc12345.jpg`)
+3. **Storage**: Saved via Django `default_storage.save()`
+4. **Cleanup**: Old image file is deleted before saving new one
+5. **URL Generation**: Returned via `default_storage.url()` for CDN compatibility
+
+**Upload constraints:**
 - Maximum file size: 5MB
 - Allowed extensions: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.svg`
-- File naming: `{timestamp}_{uuid}.{ext}` (e.g., `20260605_123456_abc12345.jpg`)
-- Compatible with existing `images/` path for backward compatibility
+- Path prefix: `images/` (compatible with historical file paths)
 
 ## Usage
 
