@@ -18,6 +18,8 @@ class ErrorCode:
     PRODUCT_NOT_FOUND = 'product_not_found'
     ORDER_NOT_FOUND = 'order_not_found'
     ADDRESS_NOT_FOUND = 'address_not_found'
+    CATEGORY_NOT_FOUND = 'category_not_found'
+    SUB_CATEGORY_NOT_FOUND = 'sub_category_not_found'
     INVALID_PASSWORD = 'invalid_password'
     ACCOUNT_NOT_ACTIVATED = 'account_not_activated'
     ALREADY_REVIEWED = 'already_reviewed'

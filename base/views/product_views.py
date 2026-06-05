@@ -149,9 +149,28 @@ def uploadImage(request):
     data = request.data
 
     product_id = data['product_id']
-    product = Product.objects.get(_id=product_id)
+    try:
+        product = Product.objects.get(_id=product_id)
+    except Product.DoesNotExist:
+        return Response(
+            {'detail': 'Product not found', 'code': ErrorCode.PRODUCT_NOT_FOUND},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
-    product.image = request.FILES.get('image')
+    image_file = request.FILES.get('image')
+    if not image_file:
+        return Response(
+            {'detail': 'No image file uploaded', 'code': ErrorCode.FILE_MISSING},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if not image_file.content_type or not image_file.content_type.startswith('image/'):
+        return Response(
+            {'detail': 'Invalid file type. Only images are allowed', 'code': ErrorCode.INVALID_FILE_TYPE},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    product.image = image_file
     product.save()
 
     content = {'detail': 'Image was uploaded'}
