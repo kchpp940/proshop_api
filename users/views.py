@@ -15,6 +15,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 import os
 
+from base.audit import admin_audit
 
 from .serializers import UserSerializer
 User = get_user_model()
@@ -131,6 +132,7 @@ def updateUserProfile(request):
 
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='USER', action_type='VIEW')
 def getUsers(request):
     users = User.objects.all()
     serializer = UserSerializer(users, many=True)
@@ -139,6 +141,7 @@ def getUsers(request):
 
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='USER', action_type='DELETE')
 def deleteUser(request, pk):
     userToDelete = User.objects.get(id=pk)
     userToDelete.delete()
@@ -149,6 +152,7 @@ def deleteUser(request, pk):
 
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='USER', action_type='VIEW')
 def getUserById(request, pk):
     user = User.objects.get(id=pk)
     serializer = UserSerializer(user, many=False)
@@ -157,6 +161,7 @@ def getUserById(request, pk):
 
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='USER', action_type='UPDATE')
 def updateUser(request, pk):
     user = User.objects.get(id=pk)
 

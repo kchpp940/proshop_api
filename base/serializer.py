@@ -2,7 +2,6 @@ from rest_framework import serializers
 
 from .models import Product, Order, OrderItem, Address, ShippingAddress, Review, Category, SubCategory
 from users.serializers import UserSerializer
-from base.media_service import get_media_url
 
 
 class ReviewSerializer(serializers.ModelSerializer):
@@ -13,7 +12,6 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 class SubCategorySerializer(serializers.ModelSerializer):
     category = serializers.SerializerMethodField(read_only=True)
-    image_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SubCategory
@@ -27,11 +25,6 @@ class SubCategorySerializer(serializers.ModelSerializer):
                 'slug': obj.category.slug,
             }
 
-    def get_image_url(self, obj):
-        if obj.image and obj.image.name:
-            return get_media_url(obj.image.name)
-        return ''
-
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -42,7 +35,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     reviews = serializers.SerializerMethodField(read_only=True)
     category = serializers.SerializerMethodField(read_only=True)
-    image_url = serializers.SerializerMethodField(read_only=True)
+    image_name = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Product
@@ -62,10 +55,8 @@ class ProductSerializer(serializers.ModelSerializer):
                 'cat_slug': obj.category.category.slug,
             }
 
-    def get_image_url(self, obj):
-        if obj.image and obj.image.name:
-            return get_media_url(obj.image.name)
-        return ''
+    def get_image_name(self, obj):
+        return obj.image.name.split('/')[-1]
 
 
 class OrderItemSerializer(serializers.ModelSerializer):

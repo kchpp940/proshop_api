@@ -22,20 +22,6 @@ ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development')
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-if ENVIRONMENT == 'production':
-    from backend.cdn.conf import (
-        AWS_ACCESS_KEY_ID,
-        AWS_SECRET_ACCESS_KEY,
-        AWS_STORAGE_BUCKET_NAME,
-        AWS_S3_ENDPOINT_URL,
-        AWS_S3_OBJECT_PARAMETERS,
-        AWS_DEFAULT_ACL,
-        AWS_QUERYSTRING_AUTH,
-        DEFAULT_FILE_STORAGE,
-    )
-
-
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
 
@@ -168,12 +154,13 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.0/howto/static-files/
 
+
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = 'images/'
 MEDIA_ROOT = 'static/images/'
 
-STATICFILES_DIRS = [
+STATIC_FILES_DIRS = [
     BASE_DIR / 'static',
 ]
 

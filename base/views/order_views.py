@@ -7,6 +7,7 @@ from rest_framework import status
 
 from base.models import Product, Order, OrderItem, Address, ShippingAddress
 from base.serializer import OrderSerializer
+from base.audit import admin_audit
 
 
 @api_view(['POST'])
@@ -82,6 +83,7 @@ def getUserOrders(request):
 
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='ORDER', action_type='VIEW')
 def getOrders(request):
     orders = Order.objects.all()
     serializer = OrderSerializer(orders, many=True)
@@ -103,6 +105,7 @@ def updateOrderToPaid(request, pk):
 
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='ORDER', action_type='STATUS_CHANGE')
 def updateOrderToDelivered(request, pk):
     order = Order.objects.get(_id=pk)
 

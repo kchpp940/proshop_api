@@ -10,9 +10,9 @@ from base.views.api import home
 urlpatterns = [
     path('', home, name='home'),
 
-    path('api/auth/', include('djoser.urls')),
-    path('api/auth/', include('djoser.urls.jwt')),
-    path('api/auth/', include('djoser.urls.social')),
+    path('api/auth/', include('djoser.urls')),  # third party
+    path('api/auth/', include('djoser.urls.jwt')),  # third party
+    path('api/auth/', include('djoser.social.urls')),  # third party
 
     path('api/users/', include('users.urls')),
 
@@ -20,8 +20,6 @@ urlpatterns = [
     path('api/products/', include('base.urls.product_urls')),
     path('api/orders/', include('base.urls.order_urls')),
     path('api/categories/', include('base.urls.category_urls')),
-]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

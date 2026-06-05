@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
-from base.media_service import save_image_upload
+from base.audit import admin_audit, extract_id_from_response
 
 
 @api_view(['GET'])
@@ -57,6 +57,7 @@ def getProduct(request, pk):
 
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='PRODUCT', action_type='UPDATE')
 def updateProduct(request, pk):
     data = request.data
 
@@ -79,6 +80,7 @@ def updateProduct(request, pk):
 
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='PRODUCT', action_type='CREATE', extract_resource_id_from_response=extract_id_from_response)
 def createProduct(request):
     user = request.user
 
@@ -97,6 +99,7 @@ def createProduct(request):
 
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='PRODUCT', action_type='DELETE')
 def deleteProduct(request, pk):
     product = Product.objects.get(_id=pk)
     product.delete()
@@ -147,55 +150,17 @@ def getHotCategories(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def uploadImage(request):
-    try:
-        data = request.data
-        product_id = data.get('product_id')
+    data = request.data
 
-        if not product_id:
-            return Response(
-                {'detail': 'Product ID is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+    product_id = data['product_id']
+    product = Product.objects.get(_id=product_id)
 
-        product = Product.objects.get(_id=product_id)
-        image_file = request.FILES.get('image')
+    product.image = request.FILES.get('image')
+    product.save()
 
-        if not image_file:
-            return Response(
-                {'detail': 'No image file provided'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+    content = {'detail': 'Image was uploaded'}
 
-        saved_file = save_image_upload(
-            file=image_file,
-            subfolder='images',
-            old_image_path=product.image.name if product.image else None
-        )
-
-        product.image = saved_file['path']
-        product.save()
-
-        return Response({
-            'detail': 'Image was uploaded',
-            'image_url': saved_file['url'],
-            'image_path': saved_file['path']
-        }, status=status.HTTP_202_ACCEPTED)
-
-    except Product.DoesNotExist:
-        return Response(
-            {'detail': 'Product not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except ValueError as e:
-        return Response(
-            {'detail': str(e)},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    except Exception as e:
-        return Response(
-            {'detail': f'Upload failed: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    return Response(content, status=status.HTTP_202_ACCEPTED)
 
 
 @api_view(['GET'])

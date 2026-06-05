@@ -5,7 +5,6 @@ from rest_framework import status
 
 from base.models import Category, SubCategory
 from base.serializer import CategorySerializer, SubCategorySerializer
-from base.media_service import save_image_upload
 
 
 @api_view(['GET'])
@@ -107,55 +106,16 @@ def updateSubCategory(request, pk):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def uploadImage(request):
-    try:
-        data = request.data
-        sub_cat_id = data.get('sub_cat_id')
+    data = request.data
 
-        if not sub_cat_id:
-            return Response(
-                {'detail': 'SubCategory ID is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+    sub_cat_id = data['sub_cat_id']
+    subCategory = SubCategory.objects.get(_id=sub_cat_id)
 
-        subCategory = SubCategory.objects.get(_id=sub_cat_id)
-        image_file = request.FILES.get('image')
+    subCategory.image = request.FILES.get('image')
+    subCategory.save()
 
-        if not image_file:
-            return Response(
-                {'detail': 'No image file provided'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        saved_file = save_image_upload(
-            file=image_file,
-            subfolder='images',
-            old_image_path=subCategory.image.name if subCategory.image else None
-        )
-
-        subCategory.image = saved_file['path']
-        subCategory.save()
-
-        return Response({
-            'detail': 'Image uploaded',
-            'image_url': saved_file['url'],
-            'image_path': saved_file['path']
-        }, status=status.HTTP_200_OK)
-
-    except SubCategory.DoesNotExist:
-        return Response(
-            {'detail': 'SubCategory not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except ValueError as e:
-        return Response(
-            {'detail': str(e)},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    except Exception as e:
-        return Response(
-            {'detail': f'Upload failed: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    content = {'detail': 'Image uploaded'}
+    return Response(content, status=status.HTTP_200_OK)
 
 
 @api_view(['DELETE'])

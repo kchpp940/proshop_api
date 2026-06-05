@@ -18,7 +18,6 @@ The API has most of the features you would expect to find in an ecommerce web ap
 - Admin user management
 - Admin order details page
 - PayPal integration
-- Unified media storage service for product and category images
 
 ## Technologies
 
@@ -30,71 +29,6 @@ The API has most of the features you would expect to find in an ecommerce web ap
 - [Djoser](https://djoser.readthedocs.io/en/latest/)
 - [social-auth-app-django](https://python-social-auth.readthedocs.io/en/latest/configuration/django.html)
 - [PostgreSQL](https://www.postgresql.org/)
-- [django-storages](https://django-storages.readthedocs.io/) with DigitalOcean Spaces S3 support
-
-## Media Storage Configuration
-
-The project uses a unified media storage service with consistent validation, naming, and URL generation. The underlying storage backend is configured through Django's storage system.
-
-### Local Storage (Development)
-
-In development mode, media files are stored locally:
-
-- `MEDIA_ROOT`: `static/images/`
-- `MEDIA_URL`: `images/`
-- Files are served via Django static file serving in DEBUG mode
-
-### Cloud Storage (Production)
-
-When `ENVIRONMENT=production`, the project switches to S3-compatible cloud storage via `django-storages`. The storage configuration is loaded from `backend/cdn/`.
-
-**Current project defaults (defined in `backend/cdn/conf.py`):**
-
-| Setting | Current Value |
-|---------|---------------|
-| Storage Backend | `backend.cdn.backends.MediaStorageS3Boto3Storage` |
-| Bucket Name | `proshop` |
-| Endpoint URL | `https://proshop.nyc3.digitaloceanspaces.com` |
-| Cache Control | `max-age=86400` |
-| Default ACL | `public-read` |
-| Querystring Auth | `False` |
-
-**CDN backend settings (in `backend/cdn/backends.py`):**
-- `location = 'images'` — all files prefixed with `images/`
-- `file_overwrite = False` — auto-rename to avoid collisions
-
-**Environment variables required for production:**
-
-```bash
-# Enable production mode (triggers S3 storage)
-ENVIRONMENT=production
-
-# S3/Spaces credentials
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-```
-
-> **Note**: Bucket name, endpoint, and other storage settings are currently hardcoded in `backend/cdn/conf.py`. To use a different bucket or region, modify that file directly.
-
-### Upload Configuration (Unified via Media Service)
-
-Both product and category image uploads go through the same `save_image_upload()` flow in `base/media_service.py`:
-
-1. **Validation**: File size (≤5MB) and extension check
-2. **Naming**: `{timestamp}_{uuid}.{ext}` — `images/` prefix is added by storage backend if needed
-3. **Storage**: Saved via Django `default_storage.save()` (works for both local and S3)
-4. **Cleanup**: Old image file is deleted before saving new one
-5. **URL Generation**: Returned via `default_storage.url()` for CDN compatibility
-
-**Path behavior:**
-- **Local storage**: `images/20260605_123456_abc12345.jpg` (service adds prefix)
-- **S3 storage**: `20260605_123456_abc12345.jpg` (backend adds `images/` location prefix)
-- Result: Both environments store at `images/filename.ext` relative to their root
-
-**Upload constraints:**
-- Maximum file size: 5MB
-- Allowed extensions: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.svg`
-- Backward compatible with existing `images/` path structure
 
 ## Usage
 
