@@ -1,5 +1,5 @@
 # Generated manually - Admin Action Audit model
-# Depends on both 0010 leaf migrations to merge the migration graph
+# Mounted at the last confirmable complete leaf node in the migration graph
 
 from django.conf import settings
 from django.db import migrations, models
@@ -10,8 +10,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('base', '0010_order_status_history'),
-        ('base', '0010_orderstatushistory_alter_cartitem_unique_together_and_more'),
+        ('base', '0006_cart_cartitem'),
     ]
 
     operations = [
