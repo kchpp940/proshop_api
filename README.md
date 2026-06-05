@@ -30,38 +30,41 @@ The API has most of the features you would expect to find in an ecommerce web ap
 - [Djoser](https://djoser.readthedocs.io/en/latest/)
 - [social-auth-app-django](https://python-social-auth.readthedocs.io/en/latest/configuration/django.html)
 - [PostgreSQL](https://www.postgresql.org/)
-- [django-storages](https://django-storages.readthedocs.io/) with S3 support
+- [django-storages](https://django-storages.readthedocs.io/) with DigitalOcean Spaces S3 support
 
 ## Media Storage Configuration
 
-The project uses a unified media storage service that supports both local file system storage and S3-compatible cloud storage (DigitalOcean Spaces, AWS S3).
+The project uses a unified media storage service with consistent validation, naming, and URL generation. The underlying storage backend is configured through Django's storage system.
 
 ### Local Storage (Development)
 
-By default, media files are stored locally in the `media/` directory:
+In development mode, media files are stored locally:
 
-- `MEDIA_ROOT`: `BASE_DIR / media/`
-- `MEDIA_URL`: `/media/`
+- `MEDIA_ROOT`: `static/images/`
+- `MEDIA_URL`: `images/`
+- Files are served via Django static file serving in DEBUG mode
 
 ### Cloud Storage (Production)
 
-To enable S3-compatible cloud storage, set the following environment variables:
+In production mode (`ENVIRONMENT=production`), the project uses DigitalOcean Spaces (S3-compatible storage) via `django-storages`. The configuration is loaded from `backend/cdn/conf.py`:
+
+**Required environment variables:**
 
 ```bash
-USE_S3_STORAGE=True
+ENVIRONMENT=production
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_STORAGE_BUCKET_NAME=your_bucket_name
-AWS_S3_ENDPOINT_URL=https://your-region.digitaloceanspaces.com
 ```
 
-### Upload Configuration
+**Storage backend:** `backend.cdn.backends.MediaStorageS3Boto3Storage`
+**Bucket location:** `images/`
+
+### Upload Configuration (Unified via Media Service)
 
 - Maximum file size: 5MB
 - Allowed extensions: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.svg`
-- Upload directories:
-  - Product images: `media/products/`
-  - Category images: `media/categories/`
+- File naming: `{timestamp}_{uuid}.{ext}` (e.g., `20260605_123456_abc12345.jpg`)
+- Compatible with existing `images/` path for backward compatibility
 
 ## Usage
 

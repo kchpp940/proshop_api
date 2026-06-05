@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
-from base.media_service import save_uploaded_file, delete_file, get_media_url
+from base.media_service import validate_file, get_media_url, delete_file
 
 
 @api_view(['GET'])
@@ -145,7 +145,7 @@ def getHotCategories(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAdminUser])
+@permission_classes([AllowAny])
 def uploadImage(request):
     try:
         data = request.data
@@ -166,18 +166,21 @@ def uploadImage(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        validate_file(image_file)
+
         if product.image and product.image.name != 'placeholder.png':
             delete_file(product.image.name)
 
-        saved_file = save_uploaded_file(image_file, 'products')
-        product.image = saved_file['path']
+        product.image = image_file
         product.save()
+
+        image_url = get_media_url(product.image.name)
 
         return Response({
             'detail': 'Image was uploaded',
-            'image_url': saved_file['url'],
-            'image_path': saved_file['path']
-        }, status=status.HTTP_200_OK)
+            'image_url': image_url,
+            'image_path': product.image.name
+        }, status=status.HTTP_202_ACCEPTED)
 
     except Product.DoesNotExist:
         return Response(

@@ -3,8 +3,6 @@ import uuid
 from datetime import datetime
 from django.conf import settings
 from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
-from django.utils.deconstruct import deconstructible
 
 
 MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -22,13 +20,15 @@ def validate_file(file):
     return True
 
 
-def generate_filename(original_name, prefix=''):
+def generate_filename(original_name, subfolder=''):
     ext = os.path.splitext(original_name)[1].lower()
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     unique_id = uuid.uuid4().hex[:8]
 
-    if prefix:
-        prefix = prefix.rstrip('/') + '/'
+    if subfolder:
+        prefix = subfolder.rstrip('/') + '/'
+    else:
+        prefix = ''
 
     filename = f'{prefix}{timestamp}_{unique_id}{ext}'
     return filename
@@ -50,27 +50,19 @@ def get_media_url(file_path):
     return f'{settings.MEDIA_URL.rstrip("/")}/{file_path.lstrip("/")}'
 
 
-def save_uploaded_file(file, subfolder=''):
+def save_uploaded_file(file, subfolder='images'):
     validate_file(file)
 
     relative_path = generate_filename(file.name, subfolder)
 
-    if subfolder:
-        subfolder_path = os.path.join(settings.MEDIA_ROOT, subfolder)
-        os.makedirs(subfolder_path, exist_ok=True)
+    saved_path = default_storage.save(relative_path, file)
 
-    full_path = os.path.join(settings.MEDIA_ROOT, relative_path)
-
-    with open(full_path, 'wb+') as destination:
-        for chunk in file.chunks():
-            destination.write(chunk)
-
-    url = get_media_url(relative_path)
+    url = get_media_url(saved_path)
 
     return {
-        'path': relative_path,
+        'path': saved_path,
         'url': url,
-        'name': os.path.basename(relative_path),
+        'name': os.path.basename(saved_path),
         'size': file.size,
     }
 
@@ -79,22 +71,11 @@ def delete_file(file_path):
     if not file_path:
         return False
 
-    full_path = os.path.join(settings.MEDIA_ROOT, file_path)
-    if os.path.exists(full_path):
-        os.remove(full_path)
-        return True
+    try:
+        if default_storage.exists(file_path):
+            default_storage.delete(file_path)
+            return True
+    except Exception:
+        pass
 
     return False
-
-
-@deconstructible
-class UploadToPath:
-    def __init__(self, subfolder=''):
-        self.subfolder = subfolder
-
-    def __call__(self, instance, filename):
-        return generate_filename(filename, self.subfolder)
-
-
-upload_to_products = UploadToPath('products')
-upload_to_categories = UploadToPath('categories')

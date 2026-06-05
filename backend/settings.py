@@ -22,10 +22,7 @@ ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development')
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Media Storage Configuration
-USE_S3_STORAGE = os.environ.get('USE_S3_STORAGE', 'False').lower() == 'true'
-
-if USE_S3_STORAGE:
+if ENVIRONMENT == 'production':
     from backend.cdn.conf import (
         AWS_ACCESS_KEY_ID,
         AWS_SECRET_ACCESS_KEY,
@@ -173,17 +170,12 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_URL = 'images/'
+MEDIA_ROOT = 'static/images/'
+
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
-
-# Media files configuration
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-# Upload configuration
-MAX_UPLOAD_SIZE = 5 * 1024 * 1024
-ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
 
 
 REST_FRAMEWORK = {
