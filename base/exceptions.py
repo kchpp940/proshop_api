@@ -1,5 +1,6 @@
 from rest_framework.exceptions import APIException
 from rest_framework import status
+from rest_framework.response import Response
 
 
 class ErrorCode:
@@ -251,3 +252,10 @@ def custom_exception_handler(exc, context):
     }
 
     return response
+
+
+def error_response(detail, code, status_code=status.HTTP_400_BAD_REQUEST):
+    return Response(
+        {'detail': detail, 'code': code},
+        status=status_code
+    )

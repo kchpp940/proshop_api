@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Category, SubCategory
 from base.serializer import CategorySerializer, SubCategorySerializer
-from base.exceptions import ErrorCode
+from base.exceptions import ErrorCode, error_response
 
 
 @api_view(['GET'])
@@ -113,22 +113,25 @@ def uploadImage(request):
     try:
         subCategory = SubCategory.objects.get(_id=sub_cat_id)
     except SubCategory.DoesNotExist:
-        return Response(
-            {'detail': 'Sub category not found', 'code': ErrorCode.SUB_CATEGORY_NOT_FOUND},
-            status=status.HTTP_404_NOT_FOUND
+        return error_response(
+            'Sub category not found',
+            ErrorCode.SUB_CATEGORY_NOT_FOUND,
+            status.HTTP_404_NOT_FOUND
         )
 
     image_file = request.FILES.get('image')
     if not image_file:
-        return Response(
-            {'detail': 'No image file uploaded', 'code': ErrorCode.FILE_MISSING},
-            status=status.HTTP_400_BAD_REQUEST
+        return error_response(
+            'No image file uploaded',
+            ErrorCode.FILE_MISSING,
+            status.HTTP_400_BAD_REQUEST
         )
     
     if not image_file.content_type or not image_file.content_type.startswith('image/'):
-        return Response(
-            {'detail': 'Invalid file type. Only images are allowed', 'code': ErrorCode.INVALID_FILE_TYPE},
-            status=status.HTTP_400_BAD_REQUEST
+        return error_response(
+            'Invalid file type. Only images are allowed',
+            ErrorCode.INVALID_FILE_TYPE,
+            status.HTTP_400_BAD_REQUEST
         )
 
     subCategory.image = image_file

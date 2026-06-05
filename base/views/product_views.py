@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
-from base.exceptions import ErrorCode
+from base.exceptions import ErrorCode, error_response
 
 
 @api_view(['GET'])
@@ -152,22 +152,25 @@ def uploadImage(request):
     try:
         product = Product.objects.get(_id=product_id)
     except Product.DoesNotExist:
-        return Response(
-            {'detail': 'Product not found', 'code': ErrorCode.PRODUCT_NOT_FOUND},
-            status=status.HTTP_404_NOT_FOUND
+        return error_response(
+            'Product not found',
+            ErrorCode.PRODUCT_NOT_FOUND,
+            status.HTTP_404_NOT_FOUND
         )
 
     image_file = request.FILES.get('image')
     if not image_file:
-        return Response(
-            {'detail': 'No image file uploaded', 'code': ErrorCode.FILE_MISSING},
-            status=status.HTTP_400_BAD_REQUEST
+        return error_response(
+            'No image file uploaded',
+            ErrorCode.FILE_MISSING,
+            status.HTTP_400_BAD_REQUEST
         )
     
     if not image_file.content_type or not image_file.content_type.startswith('image/'):
-        return Response(
-            {'detail': 'Invalid file type. Only images are allowed', 'code': ErrorCode.INVALID_FILE_TYPE},
-            status=status.HTTP_400_BAD_REQUEST
+        return error_response(
+            'Invalid file type. Only images are allowed',
+            ErrorCode.INVALID_FILE_TYPE,
+            status.HTTP_400_BAD_REQUEST
         )
 
     product.image = image_file
@@ -198,12 +201,18 @@ def createProductReview(request, pk):
     alreadyReviewed = product.review_set.all().filter(user=user).exists()
 
     if alreadyReviewed:
-        content = {'detail': 'Product already reviewed', 'code': ErrorCode.ALREADY_REVIEWED}
-        return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        return error_response(
+            'Product already reviewed',
+            ErrorCode.ALREADY_REVIEWED,
+            status.HTTP_400_BAD_REQUEST
+        )
 
     elif data['rating'] == 0:
-        content = {'detail': 'Please select a rating', 'code': ErrorCode.INVALID_RATING}
-        return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        return error_response(
+            'Please select a rating',
+            ErrorCode.INVALID_RATING,
+            status.HTTP_400_BAD_REQUEST
+        )
 
     else:
         review = Review.objects.create(

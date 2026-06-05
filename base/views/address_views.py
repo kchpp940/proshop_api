@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Address
 from base.serializer import AddressSerializer
-from base.exceptions import ErrorCode
+from base.exceptions import ErrorCode, error_response
 
 
 @api_view(['GET'])
@@ -24,15 +24,17 @@ def getUserAddressById(request, pk):
     try:
         address = Address.objects.get(_id=pk)
     except Address.DoesNotExist:
-        return Response(
-            {'detail': 'Address not found', 'code': ErrorCode.ADDRESS_NOT_FOUND},
-            status=status.HTTP_404_NOT_FOUND
+        return error_response(
+            'Address not found',
+            ErrorCode.ADDRESS_NOT_FOUND,
+            status.HTTP_404_NOT_FOUND
         )
     
     if address.user != user and not user.is_staff:
-        return Response(
-            {'detail': 'You are not authorized to access this address', 'code': ErrorCode.PERMISSION_DENIED},
-            status=status.HTTP_403_FORBIDDEN
+        return error_response(
+            'You are not authorized to access this address',
+            ErrorCode.PERMISSION_DENIED,
+            status.HTTP_403_FORBIDDEN
         )
     
     serializer = AddressSerializer(address, many=False)
@@ -69,15 +71,17 @@ def updateAddress(request, pk):
     try:
         address = Address.objects.get(_id=pk)
     except Address.DoesNotExist:
-        return Response(
-            {'detail': 'Address not found', 'code': ErrorCode.ADDRESS_NOT_FOUND},
-            status=status.HTTP_404_NOT_FOUND
+        return error_response(
+            'Address not found',
+            ErrorCode.ADDRESS_NOT_FOUND,
+            status.HTTP_404_NOT_FOUND
         )
     
     if address.user != user and not user.is_staff:
-        return Response(
-            {'detail': 'You are not authorized to update this address', 'code': ErrorCode.PERMISSION_DENIED},
-            status=status.HTTP_403_FORBIDDEN
+        return error_response(
+            'You are not authorized to update this address',
+            ErrorCode.PERMISSION_DENIED,
+            status.HTTP_403_FORBIDDEN
         )
 
     address.first_name = data['first_name']
@@ -102,15 +106,17 @@ def deleteAddress(request, pk):
     try:
         address = Address.objects.get(_id=pk)
     except Address.DoesNotExist:
-        return Response(
-            {'detail': 'Address not found', 'code': ErrorCode.ADDRESS_NOT_FOUND},
-            status=status.HTTP_404_NOT_FOUND
+        return error_response(
+            'Address not found',
+            ErrorCode.ADDRESS_NOT_FOUND,
+            status.HTTP_404_NOT_FOUND
         )
     
     if address.user != user and not user.is_staff:
-        return Response(
-            {'detail': 'You are not authorized to delete this address', 'code': ErrorCode.PERMISSION_DENIED},
-            status=status.HTTP_403_FORBIDDEN
+        return error_response(
+            'You are not authorized to delete this address',
+            ErrorCode.PERMISSION_DENIED,
+            status.HTTP_403_FORBIDDEN
         )
     
     address.delete()

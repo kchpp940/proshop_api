@@ -7,7 +7,7 @@ from rest_framework import status
 
 from base.models import Product, Order, OrderItem, Address, ShippingAddress
 from base.serializer import OrderSerializer
-from base.exceptions import ErrorCode
+from base.exceptions import ErrorCode, error_response
 
 
 @api_view(['POST'])
@@ -19,9 +19,10 @@ def addOrderItems(request):
     orderItems = data['orderItems']
 
     if orderItems and len(orderItems) == 0:
-        return Response(
-            {'detail': 'No order items', 'code': ErrorCode.EMPTY_ORDER_ITEMS},
-            status=status.HTTP_400_BAD_REQUEST
+        return error_response(
+            'No order items',
+            ErrorCode.EMPTY_ORDER_ITEMS,
+            status.HTTP_400_BAD_REQUEST
         )
     else:
         order = Order.objects.create(
@@ -67,14 +68,16 @@ def getOrderById(request, pk):
             serializer = OrderSerializer(order, many=False)
             return Response(serializer.data)
         else:
-            return Response(
-                {'detail': 'You are not authorized to view this order', 'code': ErrorCode.PERMISSION_DENIED},
-                status=status.HTTP_403_FORBIDDEN
+            return error_response(
+                'You are not authorized to view this order',
+                ErrorCode.PERMISSION_DENIED,
+                status.HTTP_403_FORBIDDEN
             )
     except Order.DoesNotExist:
-        return Response(
-            {'detail': 'Order does not exist', 'code': ErrorCode.ORDER_NOT_FOUND},
-            status=status.HTTP_404_NOT_FOUND
+        return error_response(
+            'Order does not exist',
+            ErrorCode.ORDER_NOT_FOUND,
+            status.HTTP_404_NOT_FOUND
         )
 
 
