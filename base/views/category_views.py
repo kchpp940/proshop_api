@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Category, SubCategory
 from base.serializer import CategorySerializer, SubCategorySerializer
-from base.exceptions import ErrorCode, error_response
+from base.media_service import save_uploaded_file, delete_file
 
 
 @api_view(['GET'])
@@ -105,40 +105,55 @@ def updateSubCategory(request, pk):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAdminUser])
 def uploadImage(request):
-    data = request.data
-
-    sub_cat_id = data['sub_cat_id']
     try:
+        data = request.data
+        sub_cat_id = data.get('sub_cat_id')
+
+        if not sub_cat_id:
+            return Response(
+                {'detail': 'SubCategory ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         subCategory = SubCategory.objects.get(_id=sub_cat_id)
+        image_file = request.FILES.get('image')
+
+        if not image_file:
+            return Response(
+                {'detail': 'No image file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if subCategory.image and subCategory.image.name != 'placeholder.png':
+            delete_file(subCategory.image.name)
+
+        saved_file = save_uploaded_file(image_file, 'categories')
+        subCategory.image = saved_file['path']
+        subCategory.save()
+
+        return Response({
+            'detail': 'Image uploaded',
+            'image_url': saved_file['url'],
+            'image_path': saved_file['path']
+        }, status=status.HTTP_200_OK)
+
     except SubCategory.DoesNotExist:
-        return error_response(
-            'Sub category not found',
-            ErrorCode.SUB_CATEGORY_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
+        return Response(
+            {'detail': 'SubCategory not found'},
+            status=status.HTTP_404_NOT_FOUND
         )
-
-    image_file = request.FILES.get('image')
-    if not image_file:
-        return error_response(
-            'No image file uploaded',
-            ErrorCode.FILE_MISSING,
-            status.HTTP_400_BAD_REQUEST
+    except ValueError as e:
+        return Response(
+            {'detail': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
         )
-    
-    if not image_file.content_type or not image_file.content_type.startswith('image/'):
-        return error_response(
-            'Invalid file type. Only images are allowed',
-            ErrorCode.INVALID_FILE_TYPE,
-            status.HTTP_400_BAD_REQUEST
+    except Exception as e:
+        return Response(
+            {'detail': f'Upload failed: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-    subCategory.image = image_file
-    subCategory.save()
-
-    content = {'detail': 'Image uploaded'}
-    return Response(content, status=status.HTTP_200_OK)
 
 
 @api_view(['DELETE'])

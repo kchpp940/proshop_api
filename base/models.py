@@ -30,12 +30,18 @@ class SubCategory(models.Model):
     def __str__(self):
         return self.name
 
+    def get_image_url(self):
+        from base.media_service import get_media_url
+        if self.image and self.image.name:
+            return get_media_url(self.image.name)
+        return ''
+
 
 class Product(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     name = models.CharField(max_length=200, null=True, blank=True)
     image = models.ImageField(null=True, blank=True,
-                              default='placeholder.png', upload_to='images/')
+                              default='placeholder.png')
     brand = models.CharField(max_length=200, null=True, blank=True)
     category = models.ForeignKey(
         SubCategory, on_delete=models.SET_NULL, null=True)
@@ -52,6 +58,12 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+    def get_image_url(self):
+        from base.media_service import get_media_url
+        if self.image and self.image.name:
+            return get_media_url(self.image.name)
+        return ''
 
 
 class Review(models.Model):

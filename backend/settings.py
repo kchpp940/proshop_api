@@ -22,6 +22,23 @@ ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development')
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+# Media Storage Configuration
+USE_S3_STORAGE = os.environ.get('USE_S3_STORAGE', 'False').lower() == 'true'
+
+if USE_S3_STORAGE:
+    from backend.cdn.conf import (
+        AWS_ACCESS_KEY_ID,
+        AWS_SECRET_ACCESS_KEY,
+        AWS_STORAGE_BUCKET_NAME,
+        AWS_S3_ENDPOINT_URL,
+        AWS_S3_OBJECT_PARAMETERS,
+        AWS_DEFAULT_ACL,
+        AWS_QUERYSTRING_AUTH,
+        DEFAULT_FILE_STORAGE,
+    )
+
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
 
@@ -154,15 +171,19 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.0/howto/static-files/
 
-
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-MEDIA_URL = 'images/'
-MEDIA_ROOT = 'static/images/'
-
-STATIC_FILES_DIRS = [
+STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
+
+# Media files configuration
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Upload configuration
+MAX_UPLOAD_SIZE = 5 * 1024 * 1024
+ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
 
 
 REST_FRAMEWORK = {
@@ -172,7 +193,6 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-    'EXCEPTION_HANDLER': 'base.exceptions.custom_exception_handler',
 }
 
 AUTHENTICATION_BACKENDS = (

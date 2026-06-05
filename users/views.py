@@ -15,7 +15,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 import os
 
-from base.exceptions import ErrorCode, error_response
 
 from .serializers import UserSerializer
 User = get_user_model()
@@ -30,11 +29,7 @@ def custom_login_view(request):
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
-        return error_response(
-            'There is no account for this email address',
-            ErrorCode.USER_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
-        )
+        return Response({'detail': 'There is no account for this email address'}, status=status.HTTP_404_NOT_FOUND)
 
     if user.check_password(password):
 
@@ -48,17 +43,9 @@ def custom_login_view(request):
 
             return Response(token, status=status.HTTP_200_OK)
         else:
-            return error_response(
-                'Your account is not activated',
-                ErrorCode.ACCOUNT_NOT_ACTIVATED,
-                status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({'detail': 'Your account is not activated'}, status=status.HTTP_401_UNAUTHORIZED)
     else:
-        return error_response(
-            'Your password is incorrect',
-            ErrorCode.INVALID_PASSWORD,
-            status.HTTP_401_UNAUTHORIZED
-        )
+        return Response({'detail': 'Your password is incorrect'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 @api_view(['POST'])
@@ -71,18 +58,10 @@ def custom_activation_view(request):
         uid = urlsafe_base64_decode(uidb64).decode()
         user = User.objects.get(pk=uid)
     except (User.DoesNotExist, ValueError, TypeError, OverflowError):
-        return error_response(
-            'Invalid activation link',
-            'invalid_activation_link',
-            status.HTTP_400_BAD_REQUEST
-        )
+        return Response({'detail': 'Invalid activation link'}, status=status.HTTP_400_BAD_REQUEST)
 
     if user.is_active:
-        return error_response(
-            'Your account is already activated',
-            'already_activated',
-            status.HTTP_400_BAD_REQUEST
-        )
+        return Response({'detail': 'Your account is already activated'}, status=status.HTTP_400_BAD_REQUEST)
     else:
         if default_token_generator.check_token(user, token):
             user.is_active = True
@@ -101,11 +80,7 @@ def custom_activation_view(request):
 
             return Response(token, status=status.HTTP_200_OK)
         else:
-            return error_response(
-                'Your token is incorrect',
-                ErrorCode.INVALID_TOKEN,
-                status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({'detail': 'Your token is incorrect'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class GoogleCodeVerificationView(TemplateView):
@@ -129,11 +104,7 @@ def custom_request_password_reset(request):
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
-        return error_response(
-            'There is no account for this email address',
-            ErrorCode.USER_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
-        )
+        return Response({'detail': 'There is no account for this email address'}, status=status.HTTP_404_NOT_FOUND)
 
     context = {'user': user}
     to = [get_user_email(user)]
@@ -169,14 +140,7 @@ def getUsers(request):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteUser(request, pk):
-    try:
-        userToDelete = User.objects.get(id=pk)
-    except User.DoesNotExist:
-        return error_response(
-            'User not found',
-            ErrorCode.USER_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
-        )
+    userToDelete = User.objects.get(id=pk)
     userToDelete.delete()
 
     content = {'detail': 'User deleted successfully'}
@@ -186,14 +150,7 @@ def deleteUser(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def getUserById(request, pk):
-    try:
-        user = User.objects.get(id=pk)
-    except User.DoesNotExist:
-        return error_response(
-            'User not found',
-            ErrorCode.USER_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
-        )
+    user = User.objects.get(id=pk)
     serializer = UserSerializer(user, many=False)
     return Response(serializer.data)
 
@@ -201,14 +158,7 @@ def getUserById(request, pk):
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
 def updateUser(request, pk):
-    try:
-        user = User.objects.get(id=pk)
-    except User.DoesNotExist:
-        return error_response(
-            'User not found',
-            ErrorCode.USER_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
-        )
+    user = User.objects.get(id=pk)
 
     data = request.data
 

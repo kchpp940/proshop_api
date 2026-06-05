@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
-from base.exceptions import ErrorCode, error_response
+from base.media_service import save_uploaded_file, delete_file, get_media_url
 
 
 @api_view(['GET'])
@@ -137,6 +137,7 @@ def getHotCategories(request):
             'clicks': category_clicks
         })
 
+    # Sort by clicks in descending order and get top 10
     hot_categories.sort(key=lambda x: x['clicks'], reverse=True)
     hot_categories = hot_categories[:10]
 
@@ -144,41 +145,55 @@ def getHotCategories(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAdminUser])
 def uploadImage(request):
-    data = request.data
-
-    product_id = data['product_id']
     try:
+        data = request.data
+        product_id = data.get('product_id')
+
+        if not product_id:
+            return Response(
+                {'detail': 'Product ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         product = Product.objects.get(_id=product_id)
+        image_file = request.FILES.get('image')
+
+        if not image_file:
+            return Response(
+                {'detail': 'No image file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if product.image and product.image.name != 'placeholder.png':
+            delete_file(product.image.name)
+
+        saved_file = save_uploaded_file(image_file, 'products')
+        product.image = saved_file['path']
+        product.save()
+
+        return Response({
+            'detail': 'Image was uploaded',
+            'image_url': saved_file['url'],
+            'image_path': saved_file['path']
+        }, status=status.HTTP_200_OK)
+
     except Product.DoesNotExist:
-        return error_response(
-            'Product not found',
-            ErrorCode.PRODUCT_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
+        return Response(
+            {'detail': 'Product not found'},
+            status=status.HTTP_404_NOT_FOUND
         )
-
-    image_file = request.FILES.get('image')
-    if not image_file:
-        return error_response(
-            'No image file uploaded',
-            ErrorCode.FILE_MISSING,
-            status.HTTP_400_BAD_REQUEST
+    except ValueError as e:
+        return Response(
+            {'detail': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
         )
-    
-    if not image_file.content_type or not image_file.content_type.startswith('image/'):
-        return error_response(
-            'Invalid file type. Only images are allowed',
-            ErrorCode.INVALID_FILE_TYPE,
-            status.HTTP_400_BAD_REQUEST
+    except Exception as e:
+        return Response(
+            {'detail': f'Upload failed: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-    product.image = image_file
-    product.save()
-
-    content = {'detail': 'Image was uploaded'}
-
-    return Response(content, status=status.HTTP_202_ACCEPTED)
 
 
 @api_view(['GET'])
@@ -201,18 +216,12 @@ def createProductReview(request, pk):
     alreadyReviewed = product.review_set.all().filter(user=user).exists()
 
     if alreadyReviewed:
-        return error_response(
-            'Product already reviewed',
-            ErrorCode.ALREADY_REVIEWED,
-            status.HTTP_400_BAD_REQUEST
-        )
+        content = {'detail': 'Product already reviewed'}
+        return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
     elif data['rating'] == 0:
-        return error_response(
-            'Please select a rating',
-            ErrorCode.INVALID_RATING,
-            status.HTTP_400_BAD_REQUEST
-        )
+        content = {'detail': 'Please select a rating'}
+        return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
     else:
         review = Review.objects.create(

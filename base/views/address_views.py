@@ -5,7 +5,6 @@ from rest_framework import status
 
 from base.models import Address
 from base.serializer import AddressSerializer
-from base.exceptions import ErrorCode, error_response
 
 
 @api_view(['GET'])
@@ -20,23 +19,7 @@ def getUserAddresses(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def getUserAddressById(request, pk):
-    user = request.user
-    try:
-        address = Address.objects.get(_id=pk)
-    except Address.DoesNotExist:
-        return error_response(
-            'Address not found',
-            ErrorCode.ADDRESS_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
-        )
-    
-    if address.user != user and not user.is_staff:
-        return error_response(
-            'You are not authorized to access this address',
-            ErrorCode.PERMISSION_DENIED,
-            status.HTTP_403_FORBIDDEN
-        )
-    
+    address = Address.objects.get(_id=pk)
     serializer = AddressSerializer(address, many=False)
     return Response(serializer.data)
 
@@ -66,23 +49,8 @@ def addAddress(request):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def updateAddress(request, pk):
-    user = request.user
     data = request.data
-    try:
-        address = Address.objects.get(_id=pk)
-    except Address.DoesNotExist:
-        return error_response(
-            'Address not found',
-            ErrorCode.ADDRESS_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
-        )
-    
-    if address.user != user and not user.is_staff:
-        return error_response(
-            'You are not authorized to update this address',
-            ErrorCode.PERMISSION_DENIED,
-            status.HTTP_403_FORBIDDEN
-        )
+    address = Address.objects.get(_id=pk)
 
     address.first_name = data['first_name']
     address.last_name = data['last_name']
@@ -102,23 +70,7 @@ def updateAddress(request, pk):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def deleteAddress(request, pk):
-    user = request.user
-    try:
-        address = Address.objects.get(_id=pk)
-    except Address.DoesNotExist:
-        return error_response(
-            'Address not found',
-            ErrorCode.ADDRESS_NOT_FOUND,
-            status.HTTP_404_NOT_FOUND
-        )
-    
-    if address.user != user and not user.is_staff:
-        return error_response(
-            'You are not authorized to delete this address',
-            ErrorCode.PERMISSION_DENIED,
-            status.HTTP_403_FORBIDDEN
-        )
-    
+    address = Address.objects.get(_id=pk)
     address.delete()
 
     return Response(address._id, status=status.HTTP_200_OK)

@@ -18,6 +18,7 @@ The API has most of the features you would expect to find in an ecommerce web ap
 - Admin user management
 - Admin order details page
 - PayPal integration
+- Unified media storage service for product and category images
 
 ## Technologies
 
@@ -29,6 +30,38 @@ The API has most of the features you would expect to find in an ecommerce web ap
 - [Djoser](https://djoser.readthedocs.io/en/latest/)
 - [social-auth-app-django](https://python-social-auth.readthedocs.io/en/latest/configuration/django.html)
 - [PostgreSQL](https://www.postgresql.org/)
+- [django-storages](https://django-storages.readthedocs.io/) with S3 support
+
+## Media Storage Configuration
+
+The project uses a unified media storage service that supports both local file system storage and S3-compatible cloud storage (DigitalOcean Spaces, AWS S3).
+
+### Local Storage (Development)
+
+By default, media files are stored locally in the `media/` directory:
+
+- `MEDIA_ROOT`: `BASE_DIR / media/`
+- `MEDIA_URL`: `/media/`
+
+### Cloud Storage (Production)
+
+To enable S3-compatible cloud storage, set the following environment variables:
+
+```bash
+USE_S3_STORAGE=True
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_STORAGE_BUCKET_NAME=your_bucket_name
+AWS_S3_ENDPOINT_URL=https://your-region.digitaloceanspaces.com
+```
+
+### Upload Configuration
+
+- Maximum file size: 5MB
+- Allowed extensions: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.svg`
+- Upload directories:
+  - Product images: `media/products/`
+  - Category images: `media/categories/`
 
 ## Usage
 
