@@ -1,6 +1,5 @@
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
-from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
 from django.views.generic import TemplateView
 
@@ -15,6 +14,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 import os
 
+from base.exceptions import (
+    UserNotFoundError,
+    InvalidPasswordError,
+    AccountNotActivatedError,
+    InvalidActivationTokenError,
+    ValidationError
+)
 
 from .serializers import UserSerializer
 User = get_user_model()
@@ -29,7 +35,7 @@ def custom_login_view(request):
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
-        return Response({'detail': 'There is no account for this email address'}, status=status.HTTP_404_NOT_FOUND)
+        raise UserNotFoundError(detail='There is no account for this email address')
 
     if user.check_password(password):
 
@@ -43,9 +49,9 @@ def custom_login_view(request):
 
             return Response(token, status=status.HTTP_200_OK)
         else:
-            return Response({'detail': 'Your account is not activated'}, status=status.HTTP_401_UNAUTHORIZED)
+            raise AccountNotActivatedError(detail='Your account is not activated')
     else:
-        return Response({'detail': 'Your password is incorrect'}, status=status.HTTP_401_UNAUTHORIZED)
+        raise InvalidPasswordError(detail='Your password is incorrect')
 
 
 @api_view(['POST'])
@@ -58,10 +64,10 @@ def custom_activation_view(request):
         uid = urlsafe_base64_decode(uidb64).decode()
         user = User.objects.get(pk=uid)
     except (User.DoesNotExist, ValueError, TypeError, OverflowError):
-        return Response({'detail': 'Invalid activation link'}, status=status.HTTP_400_BAD_REQUEST)
+        raise ValidationError(detail='Invalid activation link', code='invalid_activation_link')
 
     if user.is_active:
-        return Response({'detail': 'Your account is already activated'}, status=status.HTTP_400_BAD_REQUEST)
+        raise ValidationError(detail='Your account is already activated', code='already_activated')
     else:
         if default_token_generator.check_token(user, token):
             user.is_active = True
@@ -80,7 +86,7 @@ def custom_activation_view(request):
 
             return Response(token, status=status.HTTP_200_OK)
         else:
-            return Response({'detail': 'Your token is incorrect'}, status=status.HTTP_401_UNAUTHORIZED)
+            raise InvalidActivationTokenError(detail='Your token is incorrect')
 
 
 class GoogleCodeVerificationView(TemplateView):
@@ -104,7 +110,7 @@ def custom_request_password_reset(request):
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
-        return Response({'detail': 'There is no account for this email address'}, status=status.HTTP_404_NOT_FOUND)
+        raise UserNotFoundError(detail='There is no account for this email address')
 
     context = {'user': user}
     to = [get_user_email(user)]
@@ -140,7 +146,10 @@ def getUsers(request):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteUser(request, pk):
-    userToDelete = User.objects.get(id=pk)
+    try:
+        userToDelete = User.objects.get(id=pk)
+    except User.DoesNotExist:
+        raise UserNotFoundError()
     userToDelete.delete()
 
     content = {'detail': 'User deleted successfully'}
@@ -150,7 +159,10 @@ def deleteUser(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def getUserById(request, pk):
-    user = User.objects.get(id=pk)
+    try:
+        user = User.objects.get(id=pk)
+    except User.DoesNotExist:
+        raise UserNotFoundError()
     serializer = UserSerializer(user, many=False)
     return Response(serializer.data)
 
@@ -158,7 +170,10 @@ def getUserById(request, pk):
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
 def updateUser(request, pk):
-    user = User.objects.get(id=pk)
+    try:
+        user = User.objects.get(id=pk)
+    except User.DoesNotExist:
+        raise UserNotFoundError()
 
     data = request.data
 

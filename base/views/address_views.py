@@ -5,6 +5,7 @@ from rest_framework import status
 
 from base.models import Address
 from base.serializer import AddressSerializer
+from base.exceptions import AddressNotFoundError
 
 
 @api_view(['GET'])
@@ -19,7 +20,10 @@ def getUserAddresses(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def getUserAddressById(request, pk):
-    address = Address.objects.get(_id=pk)
+    try:
+        address = Address.objects.get(_id=pk)
+    except Address.DoesNotExist:
+        raise AddressNotFoundError()
     serializer = AddressSerializer(address, many=False)
     return Response(serializer.data)
 
@@ -50,7 +54,10 @@ def addAddress(request):
 @permission_classes([IsAuthenticated])
 def updateAddress(request, pk):
     data = request.data
-    address = Address.objects.get(_id=pk)
+    try:
+        address = Address.objects.get(_id=pk)
+    except Address.DoesNotExist:
+        raise AddressNotFoundError()
 
     address.first_name = data['first_name']
     address.last_name = data['last_name']
@@ -70,7 +77,11 @@ def updateAddress(request, pk):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def deleteAddress(request, pk):
-    address = Address.objects.get(_id=pk)
+    try:
+        address = Address.objects.get(_id=pk)
+    except Address.DoesNotExist:
+        raise AddressNotFoundError()
+    address_id = address._id
     address.delete()
 
-    return Response(address._id, status=status.HTTP_200_OK)
+    return Response({'detail': 'Address deleted successfully', 'code': 'address_deleted', 'id': address_id}, status=status.HTTP_200_OK)

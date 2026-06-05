@@ -5,6 +5,12 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
+from base.exceptions import (
+    ProductNotFoundError,
+    SubCategoryNotFoundError,
+    AlreadyReviewedError,
+    InvalidRatingError
+)
 
 
 @api_view(['GET'])
@@ -49,7 +55,10 @@ def getTopRatedProducts(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getProduct(request, pk):
-    product = Product.objects.get(_id=pk)
+    try:
+        product = Product.objects.get(_id=pk)
+    except Product.DoesNotExist:
+        raise ProductNotFoundError()
     serializer = ProductSerializer(product, many=False)
     return Response(serializer.data)
 
@@ -59,9 +68,15 @@ def getProduct(request, pk):
 def updateProduct(request, pk):
     data = request.data
 
-    product = Product.objects.get(_id=pk)
+    try:
+        product = Product.objects.get(_id=pk)
+    except Product.DoesNotExist:
+        raise ProductNotFoundError()
 
-    category = SubCategory.objects.get(slug=data['category'])
+    try:
+        category = SubCategory.objects.get(slug=data['category'])
+    except SubCategory.DoesNotExist:
+        raise SubCategoryNotFoundError()
 
     product.name = data['name']
     product.price = data['price']
@@ -97,21 +112,27 @@ def createProduct(request):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteProduct(request, pk):
-    product = Product.objects.get(_id=pk)
+    try:
+        product = Product.objects.get(_id=pk)
+    except Product.DoesNotExist:
+        raise ProductNotFoundError()
     product.delete()
 
-    content = {'detail': 'Product deleted successfully'}
+    content = {'detail': 'Product deleted successfully', 'code': 'product_deleted'}
     return Response(content, status=status.HTTP_200_OK)
 
 
 @api_view(['PUT'])
 @permission_classes([AllowAny])
 def incrementClickCount(request, pk):
-    product = Product.objects.get(_id=pk)
+    try:
+        product = Product.objects.get(_id=pk)
+    except Product.DoesNotExist:
+        raise ProductNotFoundError()
     product.clickCount += 1
     product.save()
 
-    content = {'detail': 'Click count was incremented'}
+    content = {'detail': 'Click count was incremented', 'code': 'click_count_incremented'}
     return Response(content, status=status.HTTP_200_OK)
 
 
@@ -136,7 +157,6 @@ def getHotCategories(request):
             'clicks': category_clicks
         })
 
-    # Sort by clicks in descending order and get top 10
     hot_categories.sort(key=lambda x: x['clicks'], reverse=True)
     hot_categories = hot_categories[:10]
 
@@ -149,12 +169,15 @@ def uploadImage(request):
     data = request.data
 
     product_id = data['product_id']
-    product = Product.objects.get(_id=product_id)
+    try:
+        product = Product.objects.get(_id=product_id)
+    except Product.DoesNotExist:
+        raise ProductNotFoundError()
 
     product.image = request.FILES.get('image')
     product.save()
 
-    content = {'detail': 'Image was uploaded'}
+    content = {'detail': 'Image was uploaded', 'code': 'image_uploaded'}
 
     return Response(content, status=status.HTTP_202_ACCEPTED)
 
@@ -174,17 +197,18 @@ def createProductReview(request, pk):
     user = request.user
     data = request.data
 
-    product = Product.objects.get(_id=pk)
+    try:
+        product = Product.objects.get(_id=pk)
+    except Product.DoesNotExist:
+        raise ProductNotFoundError()
 
     alreadyReviewed = product.review_set.all().filter(user=user).exists()
 
     if alreadyReviewed:
-        content = {'detail': 'Product already reviewed'}
-        return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        raise AlreadyReviewedError()
 
     elif data['rating'] == 0:
-        content = {'detail': 'Please select a rating'}
-        return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        raise InvalidRatingError()
 
     else:
         review = Review.objects.create(
