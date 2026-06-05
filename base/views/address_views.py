@@ -5,12 +5,10 @@ from rest_framework import status
 
 from base.models import Address
 from base.serializer import AddressSerializer
-from base.audit import admin_audit, extract_id_from_response
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-@admin_audit(resource_type='ADDRESS', action_type='VIEW')
 def getUserAddresses(request):
     user = request.user
     addresses = user.address_set.all()
@@ -20,7 +18,6 @@ def getUserAddresses(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-@admin_audit(resource_type='ADDRESS', action_type='VIEW')
 def getUserAddressById(request, pk):
     address = Address.objects.get(_id=pk)
     serializer = AddressSerializer(address, many=False)
@@ -29,7 +26,6 @@ def getUserAddressById(request, pk):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@admin_audit(resource_type='ADDRESS', action_type='CREATE', extract_resource_id_from_response=extract_id_from_response)
 def addAddress(request):
     user = request.user
     data = request.data
@@ -52,7 +48,6 @@ def addAddress(request):
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
-@admin_audit(resource_type='ADDRESS', action_type='UPDATE')
 def updateAddress(request, pk):
     data = request.data
     address = Address.objects.get(_id=pk)
@@ -74,7 +69,6 @@ def updateAddress(request, pk):
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-@admin_audit(resource_type='ADDRESS', action_type='DELETE')
 def deleteAddress(request, pk):
     address = Address.objects.get(_id=pk)
     address.delete()
