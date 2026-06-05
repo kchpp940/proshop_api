@@ -7,13 +7,7 @@ from rest_framework import status
 
 from base.models import Product, Order, OrderItem, Address, ShippingAddress
 from base.serializer import OrderSerializer
-from base.exceptions import (
-    EmptyOrderItemsError,
-    OrderNotFoundError,
-    ProductNotFoundError,
-    AddressNotFoundError,
-    PermissionDeniedError
-)
+from base.exceptions import ErrorCode
 
 
 @api_view(['POST'])
@@ -25,7 +19,10 @@ def addOrderItems(request):
     orderItems = data['orderItems']
 
     if orderItems and len(orderItems) == 0:
-        raise EmptyOrderItemsError()
+        return Response(
+            {'detail': 'No order items', 'code': ErrorCode.EMPTY_ORDER_ITEMS},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     else:
         order = Order.objects.create(
             user=user,
@@ -35,18 +32,12 @@ def addOrderItems(request):
             totalPrice=data['totalPrice'],
         )
 
-        try:
-            address = Address.objects.get(_id=data['address_id'])
-        except Address.DoesNotExist:
-            raise AddressNotFoundError()
+        address = Address.objects.get(_id=data['address_id'])
 
         ShippingAddress.objects.create(order=order, address=address)
 
         for orderItem in orderItems:
-            try:
-                product = Product.objects.get(_id=orderItem['productId'])
-            except Product.DoesNotExist:
-                raise ProductNotFoundError()
+            product = Product.objects.get(_id=orderItem['productId'])
 
             item = OrderItem.objects.create(
                 order=order,
@@ -71,14 +62,20 @@ def getOrderById(request, pk):
 
     try:
         order = Order.objects.get(_id=pk)
-    except Order.DoesNotExist:
-        raise OrderNotFoundError()
 
-    if user.is_staff or user == order.user:
-        serializer = OrderSerializer(order, many=False)
-        return Response(serializer.data)
-    else:
-        raise PermissionDeniedError(detail='You are not authorized to view this order')
+        if user.is_staff or user == order.user:
+            serializer = OrderSerializer(order, many=False)
+            return Response(serializer.data)
+        else:
+            return Response(
+                {'detail': 'You are not authorized to view this order', 'code': ErrorCode.PERMISSION_DENIED},
+                status=status.HTTP_403_FORBIDDEN
+            )
+    except Order.DoesNotExist:
+        return Response(
+            {'detail': 'Order does not exist', 'code': ErrorCode.ORDER_NOT_FOUND},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
 
 @api_view(['GET'])
@@ -103,10 +100,7 @@ def getOrders(request):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def updateOrderToPaid(request, pk):
-    try:
-        order = Order.objects.get(_id=pk)
-    except Order.DoesNotExist:
-        raise OrderNotFoundError()
+    order = Order.objects.get(_id=pk)
 
     order.isPaid = True
     order.paidAt = datetime.now()
@@ -119,10 +113,7 @@ def updateOrderToPaid(request, pk):
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
 def updateOrderToDelivered(request, pk):
-    try:
-        order = Order.objects.get(_id=pk)
-    except Order.DoesNotExist:
-        raise OrderNotFoundError()
+    order = Order.objects.get(_id=pk)
 
     order.isDelivered = True
     order.deliveredAt = datetime.now()

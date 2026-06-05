@@ -5,10 +5,6 @@ from rest_framework import status
 
 from base.models import Category, SubCategory
 from base.serializer import CategorySerializer, SubCategorySerializer
-from base.exceptions import (
-    CategoryNotFoundError,
-    SubCategoryNotFoundError
-)
 
 
 @api_view(['GET'])
@@ -22,10 +18,7 @@ def getCategories(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getCategory(request, pk):
-    try:
-        category = Category.objects.get(_id=pk)
-    except Category.DoesNotExist:
-        raise CategoryNotFoundError()
+    category = Category.objects.get(_id=pk)
     serializer = CategorySerializer(category, many=False)
     return Response(serializer.data)
 
@@ -41,10 +34,7 @@ def getSubCategories(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def getSubCategory(request, pk):
-    try:
-        subCategory = SubCategory.objects.get(_id=pk)
-    except SubCategory.DoesNotExist:
-        raise SubCategoryNotFoundError()
+    subCategory = SubCategory.objects.get(_id=pk)
     serializer = SubCategorySerializer(subCategory, many=False)
     return Response(serializer.data)
 
@@ -63,10 +53,7 @@ def createCategory(request):
 @permission_classes([IsAdminUser])
 def updateCategory(request, pk):
     data = request.data
-    try:
-        category = Category.objects.get(_id=pk)
-    except Category.DoesNotExist:
-        raise CategoryNotFoundError()
+    category = Category.objects.get(_id=pk)
 
     category.name = data['name']
     category.slug = data['slug']
@@ -80,10 +67,7 @@ def updateCategory(request, pk):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteCategory(request, pk):
-    try:
-        category = Category.objects.get(_id=pk)
-    except Category.DoesNotExist:
-        raise CategoryNotFoundError()
+    category = Category.objects.get(_id=pk)
     category.delete()
 
     content = {'detail': 'Category was successfully deleted', 'code': 'category_deleted'}
@@ -105,15 +89,9 @@ def createSubCategory(request):
 def updateSubCategory(request, pk):
     data = request.data
 
-    try:
-        category = Category.objects.get(_id=data['categoryId'])
-    except Category.DoesNotExist:
-        raise CategoryNotFoundError()
+    category = Category.objects.get(_id=data['categoryId'])
 
-    try:
-        subCategory = SubCategory.objects.get(_id=pk)
-    except SubCategory.DoesNotExist:
-        raise SubCategoryNotFoundError()
+    subCategory = SubCategory.objects.get(_id=pk)
 
     subCategory.category = category
     subCategory.name = data['name']
@@ -131,10 +109,7 @@ def uploadImage(request):
     data = request.data
 
     sub_cat_id = data['sub_cat_id']
-    try:
-        subCategory = SubCategory.objects.get(_id=sub_cat_id)
-    except SubCategory.DoesNotExist:
-        raise SubCategoryNotFoundError()
+    subCategory = SubCategory.objects.get(_id=sub_cat_id)
 
     subCategory.image = request.FILES.get('image')
     subCategory.save()
@@ -146,10 +121,7 @@ def uploadImage(request):
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteSubCategory(request, pk):
-    try:
-        subCategory = SubCategory.objects.get(_id=pk)
-    except SubCategory.DoesNotExist:
-        raise SubCategoryNotFoundError()
+    subCategory = SubCategory.objects.get(_id=pk)
     subCategory.delete()
 
     content = {'detail': 'Sub category was successfully deleted', 'code': 'sub_category_deleted'}
