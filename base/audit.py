@@ -104,13 +104,12 @@ def admin_audit(resource_type, action_type, resource_id_param=None):
                     elif 'id' in response.data:
                         final_resource_id = str(response.data['id'])
 
-            _write_audit(
-                **audit_kwargs,
-                resource_id=final_resource_id,
-                status='SUCCESS' if is_success else 'FAILED',
-                error_message=None if is_success else f'HTTP {response.status_code}',
-                response_data=response_data,
-            )
+            success_kwargs = dict(audit_kwargs)
+            success_kwargs['resource_id'] = final_resource_id
+            success_kwargs['status'] = 'SUCCESS' if is_success else 'FAILED'
+            success_kwargs['error_message'] = None if is_success else f'HTTP {response.status_code}'
+            success_kwargs['response_data'] = response_data
+            _write_audit(**success_kwargs)
 
             return response
 
