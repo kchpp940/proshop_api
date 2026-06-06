@@ -2,17 +2,11 @@ import json
 import logging
 from functools import wraps
 
-from django.apps import apps
 from rest_framework.response import Response
 
+from base.models import AdminActionAudit
+
 logger = logging.getLogger(__name__)
-
-
-def _get_audit_model():
-    try:
-        return apps.get_model('base', 'AdminActionAudit')
-    except LookupError:
-        return None
 
 
 def _get_client_ip(request):
@@ -35,17 +29,9 @@ def _sanitize_data(data):
     return data
 
 
-def _try_write_audit(**kwargs):
-    AuditModel = _get_audit_model()
-    if AuditModel is None:
-        logger.debug(
-            'AdminActionAudit model not available, skipping audit write: '
-            'action=%s resource=%s',
-            kwargs.get('action_type'), kwargs.get('resource_type')
-        )
-        return
+def _write_audit(**kwargs):
     try:
-        AuditModel.objects.create(**kwargs)
+        AdminActionAudit.objects.create(**kwargs)
     except Exception:
         logger.exception('Failed to write admin audit log')
 
@@ -91,7 +77,7 @@ def admin_audit(resource_type, action_type, resource_id_param=None):
             except Exception as e:
                 error_msg = f'{type(e).__name__}: {str(e)}'
                 logger.exception('Admin action failed: %s', error_msg)
-                _try_write_audit(
+                _write_audit(
                     **audit_kwargs,
                     status='FAILED',
                     error_message=error_msg[:2000],
@@ -118,7 +104,7 @@ def admin_audit(resource_type, action_type, resource_id_param=None):
                     elif 'id' in response.data:
                         final_resource_id = str(response.data['id'])
 
-            _try_write_audit(
+            _write_audit(
                 **audit_kwargs,
                 resource_id=final_resource_id,
                 status='SUCCESS' if is_success else 'FAILED',
