@@ -130,51 +130,58 @@ def updateUserProfile(request):
     return Response(serializer.data)
 
 
-@admin_audit(resource_type='USER', action_type='VIEW')
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def getUsers(request):
-    users = User.objects.all()
-    serializer = UserSerializer(users, many=True)
-    return Response(serializer.data)
+    with admin_audit(request, 'USER', 'VIEW') as audit:
+        users = User.objects.all()
+        serializer = UserSerializer(users, many=True)
+        response = Response(serializer.data)
+        audit['response'] = response
+        return response
 
 
-@admin_audit(resource_type='USER', action_type='DELETE')
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def deleteUser(request, pk):
-    userToDelete = User.objects.get(id=pk)
-    userToDelete.delete()
+    with admin_audit(request, 'USER', 'DELETE', pk) as audit:
+        userToDelete = User.objects.get(id=pk)
+        userToDelete.delete()
 
-    content = {'detail': 'User deleted successfully'}
-    return Response(content, status=status.HTTP_200_OK)
+        content = {'detail': 'User deleted successfully'}
+        response = Response(content, status=status.HTTP_200_OK)
+        audit['response'] = response
+        return response
 
 
-@admin_audit(resource_type='USER', action_type='VIEW')
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def getUserById(request, pk):
-    user = User.objects.get(id=pk)
-    serializer = UserSerializer(user, many=False)
-    return Response(serializer.data)
+    with admin_audit(request, 'USER', 'VIEW', pk) as audit:
+        user = User.objects.get(id=pk)
+        serializer = UserSerializer(user, many=False)
+        response = Response(serializer.data)
+        audit['response'] = response
+        return response
 
 
-@admin_audit(resource_type='USER', action_type='UPDATE')
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
 def updateUser(request, pk):
-    user = User.objects.get(id=pk)
+    with admin_audit(request, 'USER', 'UPDATE', pk) as audit:
+        user = User.objects.get(id=pk)
 
-    data = request.data
+        data = request.data
 
-    user.first_name = data['first_name']
-    user.last_name = data['last_name']
-    user.email = data['email']
-    user.is_staff = data['isAdmin']
-    user.is_active = data['isActive']
+        user.first_name = data['first_name']
+        user.last_name = data['last_name']
+        user.email = data['email']
+        user.is_staff = data['isAdmin']
+        user.is_active = data['isActive']
 
-    user.save()
+        user.save()
 
-    serializer = UserSerializer(user, many=False)
-
-    return Response(serializer.data)
+        serializer = UserSerializer(user, many=False)
+        response = Response(serializer.data)
+        audit['response'] = response
+        return response

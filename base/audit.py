@@ -1,10 +1,8 @@
 import json
 import logging
 import traceback
-from functools import wraps
+from contextlib import contextmanager
 from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.exceptions import APIException, NotFound, PermissionDenied
 
 from base.models import AdminActionAudit
 
@@ -94,21 +92,7 @@ def get_sanitized_response_data(response):
     return data
 
 
-def extract_error_detail(exc):
-    detail = None
-    if isinstance(exc, APIException):
-        detail = exc.detail
-        if isinstance(detail, (list, dict)):
-            try:
-                detail = json.dumps(detail, ensure_ascii=False)
-            except Exception:
-                detail = str(detail)
-    elif exc:
-        detail = str(exc)
-    return detail
-
-
-def _build_audit_record(
+def _write_audit_record(
     operator, operator_email, resource_type, resource_id, action_type,
     request_path, request_method, ip_address, user_agent,
     audit_status, error_message, request_data, response_data
@@ -118,7 +102,7 @@ def _build_audit_record(
             operator=operator,
             operator_email=operator_email,
             resource_type=resource_type,
-            resource_id=resource_id,
+            resource_id=str(resource_id) if resource_id is not None else None,
             action_type=action_type,
             request_path=request_path,
             request_method=request_method,
@@ -133,181 +117,88 @@ def _build_audit_record(
         logger.error(f"Failed to create audit record: {e}")
 
 
-def admin_audit(resource_type, action_type, get_resource_id=None, extract_resource_id_from_response=None):
-    def decorator(view_func):
-        @wraps(view_func)
-        def wrapped_view(request, *args, **kwargs):
-            operator = request.user if request.user.is_authenticated else None
-            operator_email = operator.email if operator and hasattr(operator, 'email') else None
-            ip_address = get_client_ip(request)
-            user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
-            request_path = request.path
-            request_method = request.method
+@contextmanager
+def admin_audit(request, resource_type, action_type, resource_id=None, extract_resource_id_from_response=None):
+    operator = request.user if request.user.is_authenticated else None
+    operator_email = operator.email if operator and hasattr(operator, 'email') else None
+    ip_address = get_client_ip(request)
+    user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
+    request_path = request.path
+    request_method = request.method
+    request_data = get_sanitized_request_data(request)
 
-            resource_id = None
-            if get_resource_id:
-                try:
-                    resource_id = get_resource_id(request, *args, **kwargs)
-                except Exception as e:
-                    logger.warning(f"Failed to get resource_id: {e}")
+    audit_context = {
+        'resource_id': resource_id,
+    }
 
-            if not resource_id and 'pk' in kwargs:
-                resource_id = str(kwargs['pk'])
+    try:
+        yield audit_context
 
-            request_data = get_sanitized_request_data(request)
-
-            is_admin = operator and operator.is_staff if operator else False
-
-            if not is_admin:
-                _build_audit_record(
-                    operator=operator,
-                    operator_email=operator_email,
-                    resource_type=resource_type,
-                    resource_id=resource_id,
-                    action_type=action_type,
-                    request_path=request_path,
-                    request_method=request_method,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    audit_status='FAILED',
-                    error_message='Admin permission required (audit layer check)',
-                    request_data=request_data,
-                    response_data=None,
-                )
-                return Response(
-                    {'detail': 'You do not have permission to perform this action.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
+        response = audit_context.get('response')
+        extracted_id = audit_context.get('resource_id')
+        if extract_resource_id_from_response and response and not extracted_id:
             try:
-                response = view_func(request, *args, **kwargs)
+                extracted_id = extract_resource_id_from_response(response)
+            except Exception as e:
+                logger.warning(f"Failed to extract resource_id from response: {e}")
 
-                audit_status = 'SUCCESS'
-                error_message = None
+        audit_status = 'SUCCESS'
+        error_message = None
 
-                if hasattr(response, 'status_code'):
-                    if response.status_code == status.HTTP_403_FORBIDDEN:
-                        audit_status = 'FAILED'
-                        error_message = 'Permission denied (403)'
-                    elif response.status_code == status.HTTP_404_NOT_FOUND:
-                        audit_status = 'FAILED'
-                        error_message = 'Resource not found (404)'
-                    elif response.status_code >= 400:
-                        audit_status = 'FAILED'
-                        try:
-                            if hasattr(response, 'data'):
-                                error_message = extract_error_detail(response.data) if not isinstance(response.data, str) else response.data
-                        except Exception:
-                            error_message = f'HTTP {response.status_code} Error'
+        if response and hasattr(response, 'status_code'):
+            if response.status_code == status.HTTP_403_FORBIDDEN:
+                audit_status = 'FAILED'
+                error_message = 'Permission denied (403)'
+            elif response.status_code == status.HTTP_404_NOT_FOUND:
+                audit_status = 'FAILED'
+                error_message = 'Resource not found (404)'
+            elif response.status_code >= 400:
+                audit_status = 'FAILED'
+                try:
+                    if hasattr(response, 'data'):
+                        error_message = str(response.data) if not isinstance(response.data, str) else response.data
+                except Exception:
+                    error_message = f'HTTP {response.status_code} Error'
 
-                response_data = get_sanitized_response_data(response)
+        response_data = get_sanitized_response_data(response) if response else None
 
-                if extract_resource_id_from_response and audit_status == 'SUCCESS':
-                    try:
-                        extracted_id = extract_resource_id_from_response(response)
-                        if extracted_id:
-                            resource_id = str(extracted_id)
-                    except Exception as e:
-                        logger.warning(f"Failed to extract resource_id from response: {e}")
+        _write_audit_record(
+            operator=operator,
+            operator_email=operator_email,
+            resource_type=resource_type,
+            resource_id=extracted_id,
+            action_type=action_type,
+            request_path=request_path,
+            request_method=request_method,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            audit_status=audit_status,
+            error_message=error_message,
+            request_data=request_data,
+            response_data=response_data,
+        )
 
-                _build_audit_record(
-                    operator=operator,
-                    operator_email=operator_email,
-                    resource_type=resource_type,
-                    resource_id=resource_id,
-                    action_type=action_type,
-                    request_path=request_path,
-                    request_method=request_method,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    audit_status=audit_status,
-                    error_message=error_message,
-                    request_data=request_data,
-                    response_data=response_data,
-                )
+    except Exception as exc:
+        error_msg = f'{type(exc).__name__}: {str(exc)}'
+        tb = traceback.format_exc()
+        logger.error(f"Admin action audit exception: {error_msg}\n{tb}")
 
-                return response
-
-            except NotFound as exc:
-                error_msg = extract_error_detail(exc) or 'Resource not found (404)'
-                _build_audit_record(
-                    operator=operator,
-                    operator_email=operator_email,
-                    resource_type=resource_type,
-                    resource_id=resource_id,
-                    action_type=action_type,
-                    request_path=request_path,
-                    request_method=request_method,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    audit_status='FAILED',
-                    error_message=error_msg,
-                    request_data=request_data,
-                    response_data=None,
-                )
-                raise
-
-            except PermissionDenied as exc:
-                error_msg = extract_error_detail(exc) or 'Permission denied (403)'
-                _build_audit_record(
-                    operator=operator,
-                    operator_email=operator_email,
-                    resource_type=resource_type,
-                    resource_id=resource_id,
-                    action_type=action_type,
-                    request_path=request_path,
-                    request_method=request_method,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    audit_status='FAILED',
-                    error_message=error_msg,
-                    request_data=request_data,
-                    response_data=None,
-                )
-                raise
-
-            except APIException as exc:
-                error_msg = extract_error_detail(exc) or str(exc)
-                _build_audit_record(
-                    operator=operator,
-                    operator_email=operator_email,
-                    resource_type=resource_type,
-                    resource_id=resource_id,
-                    action_type=action_type,
-                    request_path=request_path,
-                    request_method=request_method,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    audit_status='FAILED',
-                    error_message=error_msg,
-                    request_data=request_data,
-                    response_data=None,
-                )
-                raise
-
-            except Exception as exc:
-                error_msg = f'{type(exc).__name__}: {str(exc)}'
-                tb = traceback.format_exc()
-                logger.error(f"Admin action audit exception: {error_msg}\n{tb}")
-                _build_audit_record(
-                    operator=operator,
-                    operator_email=operator_email,
-                    resource_type=resource_type,
-                    resource_id=resource_id,
-                    action_type=action_type,
-                    request_path=request_path,
-                    request_method=request_method,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    audit_status='FAILED',
-                    error_message=error_msg,
-                    request_data=request_data,
-                    response_data=None,
-                )
-                raise
-
-        return wrapped_view
-    return decorator
+        _write_audit_record(
+            operator=operator,
+            operator_email=operator_email,
+            resource_type=resource_type,
+            resource_id=audit_context.get('resource_id'),
+            action_type=action_type,
+            request_path=request_path,
+            request_method=request_method,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            audit_status='FAILED',
+            error_message=error_msg,
+            request_data=request_data,
+            response_data=None,
+        )
+        raise
 
 
 def extract_id_from_response(response):
