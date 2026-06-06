@@ -5,7 +5,6 @@ from rest_framework import status
 
 from base.models import Category, SubCategory
 from base.serializer import CategorySerializer, SubCategorySerializer
-from base.audit import admin_audit
 
 
 @api_view(['GET'])
@@ -42,7 +41,6 @@ def getSubCategory(request, pk):
 
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='CATEGORY', action_type='CREATE')
 def createCategory(request):
     category = Category.objects.create(
         name='Sample Name',
@@ -53,7 +51,6 @@ def createCategory(request):
 
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='CATEGORY', action_type='UPDATE')
 def updateCategory(request, pk):
     data = request.data
     category = Category.objects.get(_id=pk)
@@ -69,7 +66,6 @@ def updateCategory(request, pk):
 
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='CATEGORY', action_type='DELETE')
 def deleteCategory(request, pk):
     category = Category.objects.get(_id=pk)
     category.delete()
@@ -80,7 +76,6 @@ def deleteCategory(request, pk):
 
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='CATEGORY', action_type='CREATE')
 def createSubCategory(request):
     subCategory = SubCategory.objects.create(
         name='Sample Name',
@@ -91,7 +86,6 @@ def createSubCategory(request):
 
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='CATEGORY', action_type='UPDATE')
 def updateSubCategory(request, pk):
     data = request.data
 
@@ -126,7 +120,6 @@ def uploadImage(request):
 
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='CATEGORY', action_type='DELETE')
 def deleteSubCategory(request, pk):
     subCategory = SubCategory.objects.get(_id=pk)
     subCategory.delete()

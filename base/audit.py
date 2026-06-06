@@ -2,7 +2,6 @@ import json
 import logging
 from functools import wraps
 
-from rest_framework import status
 from rest_framework.response import Response
 
 from base.models import AdminActionAudit
@@ -102,17 +101,17 @@ def admin_audit(resource_type, action_type, resource_id_param=None):
                 error_msg = f'{type(e).__name__}: {str(e)}'
                 logger.exception('Admin action failed: %s', error_msg)
 
-                AdminActionAudit.objects.create(
-                    **audit_kwargs,
-                    status='FAILED',
-                    error_message=error_msg[:2000],
-                    response_data=None,
-                )
+                try:
+                    AdminActionAudit.objects.create(
+                        **audit_kwargs,
+                        status='FAILED',
+                        error_message=error_msg[:2000],
+                        response_data=None,
+                    )
+                except Exception:
+                    logger.exception('Failed to write admin audit log')
 
-                return Response(
-                    {'detail': str(e) if str(e) else 'Internal server error'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+                raise
 
         return wrapper
     return decorator
