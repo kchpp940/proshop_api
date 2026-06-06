@@ -2,11 +2,17 @@ import json
 import logging
 from functools import wraps
 
+from django.apps import apps
 from rest_framework.response import Response
 
-from base.models import AdminActionAudit
-
 logger = logging.getLogger(__name__)
+
+
+def _get_audit_model():
+    try:
+        return apps.get_model('base', 'AdminActionAudit')
+    except LookupError:
+        return None
 
 
 def _get_client_ip(request):
@@ -27,6 +33,21 @@ def _sanitize_data(data):
         except (TypeError, ValueError):
             return str(data)
     return data
+
+
+def _try_write_audit(**kwargs):
+    AuditModel = _get_audit_model()
+    if AuditModel is None:
+        logger.debug(
+            'AdminActionAudit model not available, skipping audit write: '
+            'action=%s resource=%s',
+            kwargs.get('action_type'), kwargs.get('resource_type')
+        )
+        return
+    try:
+        AuditModel.objects.create(**kwargs)
+    except Exception:
+        logger.exception('Failed to write admin audit log')
 
 
 def admin_audit(resource_type, action_type, resource_id_param=None):
@@ -67,51 +88,45 @@ def admin_audit(resource_type, action_type, resource_id_param=None):
 
             try:
                 response = view_func(request, *args, **kwargs)
-
-                response_data = None
-                try:
-                    if isinstance(response, Response):
-                        response_data = _sanitize_data(response.data)
-                except Exception:
-                    response_data = str(response.data)[:2000] if hasattr(response, 'data') else None
-
-                is_success = True
-                if isinstance(response, Response):
-                    is_success = 200 <= response.status_code < 400
-
-                final_resource_id = resource_id
-                if not final_resource_id and isinstance(response, Response) and response.data:
-                    if isinstance(response.data, dict):
-                        if '_id' in response.data:
-                            final_resource_id = str(response.data['_id'])
-                        elif 'id' in response.data:
-                            final_resource_id = str(response.data['id'])
-
-                AdminActionAudit.objects.create(
-                    **audit_kwargs,
-                    resource_id=final_resource_id,
-                    status='SUCCESS' if is_success else 'FAILED',
-                    error_message=None if is_success else f'HTTP {response.status_code}',
-                    response_data=response_data,
-                )
-
-                return response
-
             except Exception as e:
                 error_msg = f'{type(e).__name__}: {str(e)}'
                 logger.exception('Admin action failed: %s', error_msg)
-
-                try:
-                    AdminActionAudit.objects.create(
-                        **audit_kwargs,
-                        status='FAILED',
-                        error_message=error_msg[:2000],
-                        response_data=None,
-                    )
-                except Exception:
-                    logger.exception('Failed to write admin audit log')
-
+                _try_write_audit(
+                    **audit_kwargs,
+                    status='FAILED',
+                    error_message=error_msg[:2000],
+                    response_data=None,
+                )
                 raise
+
+            response_data = None
+            try:
+                if isinstance(response, Response):
+                    response_data = _sanitize_data(response.data)
+            except Exception:
+                response_data = str(response.data)[:2000] if hasattr(response, 'data') else None
+
+            is_success = True
+            if isinstance(response, Response):
+                is_success = 200 <= response.status_code < 400
+
+            final_resource_id = resource_id
+            if not final_resource_id and isinstance(response, Response) and response.data:
+                if isinstance(response.data, dict):
+                    if '_id' in response.data:
+                        final_resource_id = str(response.data['_id'])
+                    elif 'id' in response.data:
+                        final_resource_id = str(response.data['id'])
+
+            _try_write_audit(
+                **audit_kwargs,
+                resource_id=final_resource_id,
+                status='SUCCESS' if is_success else 'FAILED',
+                error_message=None if is_success else f'HTTP {response.status_code}',
+                response_data=response_data,
+            )
+
+            return response
 
         return wrapper
     return decorator
