@@ -5,6 +5,7 @@ from rest_framework import status
 
 from base.models import Address
 from base.serializer import AddressSerializer
+from base.audit import admin_audit
 
 
 @api_view(['GET'])
@@ -74,3 +75,23 @@ def deleteAddress(request, pk):
     address.delete()
 
     return Response(address._id, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+@admin_audit(resource_type='ADDRESS', action_type='VIEW')
+def getAllAddresses(request):
+    addresses = Address.objects.all()
+    serializer = AddressSerializer(addresses, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAdminUser])
+@admin_audit(resource_type='ADDRESS', action_type='DELETE')
+def adminDeleteAddress(request, pk):
+    address = Address.objects.get(_id=pk)
+    address.delete()
+
+    content = {'detail': 'Address deleted successfully'}
+    return Response(content, status=status.HTTP_200_OK)

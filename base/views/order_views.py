@@ -83,13 +83,11 @@ def getUserOrders(request):
 
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='ORDER', action_type='VIEW')
 def getOrders(request):
-    with admin_audit(request, 'ORDER', 'VIEW') as audit:
-        orders = Order.objects.all()
-        serializer = OrderSerializer(orders, many=True)
-        response = Response(serializer.data)
-        audit['response'] = response
-        return response
+    orders = Order.objects.all()
+    serializer = OrderSerializer(orders, many=True)
+    return Response(serializer.data)
 
 
 @api_view(['PUT'])
@@ -107,16 +105,14 @@ def updateOrderToPaid(request, pk):
 
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='ORDER', action_type='STATUS_CHANGE')
 def updateOrderToDelivered(request, pk):
-    with admin_audit(request, 'ORDER', 'STATUS_CHANGE', pk) as audit:
-        order = Order.objects.get(_id=pk)
+    order = Order.objects.get(_id=pk)
 
-        order.isDelivered = True
-        order.deliveredAt = datetime.now()
+    order.isDelivered = True
+    order.deliveredAt = datetime.now()
 
-        order.save()
+    order.save()
 
-        serializer = OrderSerializer(order, many=False)
-        response = Response(serializer.data)
-        audit['response'] = response
-        return response
+    serializer = OrderSerializer(order, many=False)
+    return Response(serializer.data)

@@ -5,7 +5,7 @@ from rest_framework import status
 
 from base.models import Product, Review, SubCategory
 from base.serializer import ProductSerializer, ReviewSerializer
-from base.audit import admin_audit, extract_id_from_response
+from base.audit import admin_audit
 
 
 @api_view(['GET'])
@@ -57,61 +57,55 @@ def getProduct(request, pk):
 
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='PRODUCT', action_type='UPDATE')
 def updateProduct(request, pk):
-    with admin_audit(request, 'PRODUCT', 'UPDATE', pk) as audit:
-        data = request.data
+    data = request.data
 
-        product = Product.objects.get(_id=pk)
+    product = Product.objects.get(_id=pk)
 
-        category = SubCategory.objects.get(slug=data['category'])
+    category = SubCategory.objects.get(slug=data['category'])
 
-        product.name = data['name']
-        product.price = data['price']
-        product.brand = data['brand']
-        product.category = category
-        product.countInStock = data['countInStock']
-        product.description = data['description']
+    product.name = data['name']
+    product.price = data['price']
+    product.brand = data['brand']
+    product.category = category
+    product.countInStock = data['countInStock']
+    product.description = data['description']
 
-        product.save()
+    product.save()
 
-        serializer = ProductSerializer(product, many=False)
-        response = Response(serializer.data)
-        audit['response'] = response
-        return response
+    serializer = ProductSerializer(product, many=False)
+    return Response(serializer.data)
 
 
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='PRODUCT', action_type='CREATE')
 def createProduct(request):
-    with admin_audit(request, 'PRODUCT', 'CREATE', extract_resource_id_from_response=extract_id_from_response) as audit:
-        user = request.user
+    user = request.user
 
-        product = Product.objects.create(
-            user=user,
-            name='Sample Name',
-            description='',
-            price=0,
-            brand='Sample Brand',
-            countInStock=0,
-        )
+    product = Product.objects.create(
+        user=user,
+        name='Sample Name',
+        description='',
+        price=0,
+        brand='Sample Brand',
+        countInStock=0,
+    )
 
-        serializer = ProductSerializer(product, many=False)
-        response = Response(serializer.data)
-        audit['response'] = response
-        return response
+    serializer = ProductSerializer(product, many=False)
+    return Response(serializer.data)
 
 
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
+@admin_audit(resource_type='PRODUCT', action_type='DELETE')
 def deleteProduct(request, pk):
-    with admin_audit(request, 'PRODUCT', 'DELETE', pk) as audit:
-        product = Product.objects.get(_id=pk)
-        product.delete()
+    product = Product.objects.get(_id=pk)
+    product.delete()
 
-        content = {'detail': 'Product deleted successfully'}
-        response = Response(content, status=status.HTTP_200_OK)
-        audit['response'] = response
-        return response
+    content = {'detail': 'Product deleted successfully'}
+    return Response(content, status=status.HTTP_200_OK)
 
 
 @api_view(['PUT'])
