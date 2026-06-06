@@ -130,18 +130,18 @@ def updateUserProfile(request):
     return Response(serializer.data)
 
 
+@admin_audit(resource_type='USER', action_type='VIEW')
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='USER', action_type='VIEW')
 def getUsers(request):
     users = User.objects.all()
     serializer = UserSerializer(users, many=True)
     return Response(serializer.data)
 
 
+@admin_audit(resource_type='USER', action_type='DELETE')
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='USER', action_type='DELETE')
 def deleteUser(request, pk):
     userToDelete = User.objects.get(id=pk)
     userToDelete.delete()
@@ -150,18 +150,18 @@ def deleteUser(request, pk):
     return Response(content, status=status.HTTP_200_OK)
 
 
+@admin_audit(resource_type='USER', action_type='VIEW')
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='USER', action_type='VIEW')
 def getUserById(request, pk):
     user = User.objects.get(id=pk)
     serializer = UserSerializer(user, many=False)
     return Response(serializer.data)
 
 
+@admin_audit(resource_type='USER', action_type='UPDATE')
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='USER', action_type='UPDATE')
 def updateUser(request, pk):
     user = User.objects.get(id=pk)
 

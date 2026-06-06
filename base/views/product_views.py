@@ -55,9 +55,9 @@ def getProduct(request, pk):
     return Response(serializer.data)
 
 
+@admin_audit(resource_type='PRODUCT', action_type='UPDATE')
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='PRODUCT', action_type='UPDATE')
 def updateProduct(request, pk):
     data = request.data
 
@@ -78,9 +78,9 @@ def updateProduct(request, pk):
     return Response(serializer.data)
 
 
+@admin_audit(resource_type='PRODUCT', action_type='CREATE', extract_resource_id_from_response=extract_id_from_response)
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='PRODUCT', action_type='CREATE', extract_resource_id_from_response=extract_id_from_response)
 def createProduct(request):
     user = request.user
 
@@ -97,9 +97,9 @@ def createProduct(request):
     return Response(serializer.data)
 
 
+@admin_audit(resource_type='PRODUCT', action_type='DELETE')
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='PRODUCT', action_type='DELETE')
 def deleteProduct(request, pk):
     product = Product.objects.get(_id=pk)
     product.delete()

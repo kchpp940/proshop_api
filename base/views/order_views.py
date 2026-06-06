@@ -81,9 +81,9 @@ def getUserOrders(request):
     return Response(serializer.data)
 
 
+@admin_audit(resource_type='ORDER', action_type='VIEW')
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='ORDER', action_type='VIEW')
 def getOrders(request):
     orders = Order.objects.all()
     serializer = OrderSerializer(orders, many=True)
@@ -103,9 +103,9 @@ def updateOrderToPaid(request, pk):
     return Response('Order paid')
 
 
+@admin_audit(resource_type='ORDER', action_type='STATUS_CHANGE')
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
-@admin_audit(resource_type='ORDER', action_type='STATUS_CHANGE')
 def updateOrderToDelivered(request, pk):
     order = Order.objects.get(_id=pk)
 
